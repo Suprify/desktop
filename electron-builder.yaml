@@ -1,0 +1,26 @@
+appId: "io.github.douglasnev3s.PrintersDataManager"
+productName: "Printers Data Manager"
+copyright: "Copyright (c) 2024 Nevix Digital"
+files:
+  - main/main.js
+  - package.json
+directories:
+  buildResources: build
+  output: "dist"
+extraResources:
+  - "main/**/*"
+  - "public/"
+  - "out/"
+win:
+  target:
+  - "dir" # Se você deseja empacotar como diretório para testes locais
+  - "nsis" # Se você deseja criar um instalador para Windows
+#  - "portable" # Se você deseja uma versão portátil do aplicativo
+  - "zip" # Se você deseja empacotar como ZIP
+  icon: "public/printer_icon.ico"
+linux:
+  target:
+  - "AppImage" # Universal Linux package
+  - "deb" # Debian package
+  icon: "public/printer_icon.png" # Ensure you have a PNG icon for Linux
+  category: "Utility" # Set the Linux category
