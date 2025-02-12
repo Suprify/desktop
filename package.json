@@ -6,7 +6,7 @@
   "author": "Nevix Digital",
   "description": "Printers Data Manager",
   "scripts": {
-    "dev": "concurrently -n \"NEXT,ELECTRON\" -c \"yellow,blue\" --kill-others \"next dev\" \"electron .\"",
+    "dev": "concurrently -n \"NEXT,ELECTRON\" -c \"yellow,blue\" --kill-others \"next dev -p 3333\" \"electron .\"",
     "build": "next build && electron-builder",
     "build-linux": "electron-builder --linux",
     "lint": "next lint"

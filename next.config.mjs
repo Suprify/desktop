@@ -4,7 +4,10 @@ const nextConfig = {
   reactStrictMode: true,
   images: {
     unoptimized: true
-  }
+  },
+  serverRuntimeConfig: {
+    port: 3333,
+  },
 };
 
 export default nextConfig;

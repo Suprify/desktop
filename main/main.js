@@ -85,7 +85,7 @@ function createWindow() {
           mainWindow.loadURL("app://-");
         });
       } else {
-        mainWindow.loadURL("http://localhost:3000");
+        mainWindow.loadURL("http://localhost:3333");
         mainWindow.webContents.openDevTools();
         mainWindow.webContents.on("did-fail-load", (e, code, desc) => {
           mainWindow.webContents.reloadIgnoringCache();
