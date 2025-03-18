@@ -1,6 +1,21 @@
 import Head from 'next/head';
 import { useCallback, useEffect, useState } from 'react';
 import Image from 'next/image';
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Badge } from "@/components/ui/badge"
+import { Clipboard, RefreshCw } from "lucide-react"
+import { toast } from "sonner"
 
 interface Client {
     id: number;
@@ -249,6 +264,13 @@ export default function Home() {
             await loadData();
             await collectPrinterDataAndReport();
             localStorage.setItem('lastReportTime', now.toISOString());
+            toast.success("Atualização concluída", {
+                description: "Os dados das impressoras foram atualizados com sucesso.",
+            });
+        } catch (error) {
+            toast.error("Erro na atualização", {
+                description: "Ocorreu um erro ao atualizar os dados.",
+            });
         } finally {
             setIsUpdating(false);
         }
@@ -293,6 +315,9 @@ export default function Home() {
         localStorage.setItem('clientId', clientId);
         window.electronAPI.send('save-settings', { client_id: parseInt(clientId, 10) });
         setSaveSuccess(true);
+        toast.success("Configurações salvas", {
+            description: "As configurações foram salvas com sucesso.",
+        });
         setTimeout(() => setSaveSuccess(false), 3000);
     };
 
@@ -302,10 +327,15 @@ export default function Home() {
         const textToCopy = `ID do Cliente: ${clientId}\nNome da Máquina: ${machine}\nChave de acesso: ${accessToken}`;
         navigator.clipboard.writeText(textToCopy).then(() => {
             setCopySuccess(true);
+            toast.success("Copiado!", {
+                description: "Dados copiados para a área de transferência.",
+            });
             setTimeout(() => setCopySuccess(false), 3000); // A mensagem desaparecerá após 3 segundos
         }, (err) => {
-            console.error('Erro ao copiar: ', err);
             setCopySuccess(false);
+            toast.error("Erro ao copiar", {
+                description: "Não foi possível copiar os dados.",
+            });
         });
     };
 
@@ -335,210 +365,219 @@ export default function Home() {
     return (
         <>
             <Head>
-                <title>Ingatec - Gerenciador de Dados de Impressoras</title>
+                <title>Suprify - Gestão de Outsourcing de Impressoras</title>
             </Head>
-            <div className="max-w-4xl mx-auto px-2 py-2">
-                <div className="mb-0 flex items-center">
-                    {/* Logo da Ingatec */}
-                    <div className="logo">
-                        <Image
-                            src="/logo_ingatec.png" // O caminho é relativo à pasta public
-                            alt="Logo Ingatec"
-                            width={200} // Defina a largura conforme necessário
-                            height={60} // Defina a altura conforme necessário
-                        />
+            <div className="max-w-4xl mx-auto p-4">
+                <div className="mb-4 flex items-center">
+                    <span className="font-bold text-lg text-primary">Suprify</span>
+                </div>
+
+                <Card className="mb-6">
+                <CardHeader className="pb-3">
+                    <div className="flex justify-between items-center">
+                    <CardTitle>Configurações</CardTitle>
+                    <Button onClick={handleOpenModal} variant="outline">
+                        Chave de acesso
+                    </Button>
                     </div>
-                </div>
-            </div>
-            <div className="max-w-4xl mx-auto px-2 py-2">
-                <div className="flex justify-between items-center mb-4">
-                    <h1 className="text-2xl font-semibold mb-6">Configurações</h1>
-                    <button 
-                        onClick={handleOpenModal} 
-                        /* disabled={printers.length === 0 || !isClientActive}  */
-                        className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 disabled:bg-gray-400"
-                    >
-                        {'Chave de acesso'}
-                    </button>
-                </div>
-                {isModalOpen && (
-                    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full">
-                        <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
-                            <div className="mt-3 text-center">
-                                <h3 className="text-lg leading-6 font-medium text-gray-900">Dados da Máquina</h3>
-                                <div className="mt-2 px-7 py-3 text-left">
-                                    <p><strong>ID do Cliente:</strong> {clientId}</p>
-                                    <p><strong>Nome da Máquina:</strong> {machine}</p>
-                                    <p><strong>Chave de acesso:</strong> {formatToken(accessToken)}</p>
-                                </div>
-                                <div className="items-center px-4 py-3">
-                                    <button onClick={handleCopyToClipboard} className="px-4 py-2 bg-green-500 text-white text-base font-medium rounded-md w-full shadow-sm hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-300">
-                                        Copiar Dados
-                                    </button>
-                                    {copySuccess && <p className="text-sm text-green-600 mt-2">Dados copiados com sucesso!</p>}
-                                </div>
-                                <div className="items-center px-4 py-3">
-                                    <button onClick={handleCloseModal} className="px-4 py-2 bg-gray-500 text-white text-base font-medium rounded-md w-full shadow-sm hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-300">
-                                        Fechar
-                                    </button>
-                                </div>
-                            </div>
+                </CardHeader>
+                <CardContent>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <Card>
+                        <CardHeader className="bg-primary text-white py-2 px-4 rounded-t-lg">
+                        <CardTitle className="text-sm font-medium">Cliente</CardTitle>
+                        </CardHeader>
+                        <CardContent className="p-4">
+                        {clientSelected ? (
+                            <p className="text-center">{clientSelected.companyname}</p>
+                        ) : (
+                            <p className="text-center text-muted-foreground">Nenhum cliente encontrado.</p>
+                        )}
+                        </CardContent>
+                    </Card>
+
+                    <Card>
+                        <CardHeader className="bg-primary text-white py-2 px-4 rounded-t-lg">
+                        <CardTitle className="text-sm font-medium">Período de Execução (horas)</CardTitle>
+                        </CardHeader>
+                        <CardContent className="p-4">
+                        {settingsData ? (
+                            <p className="text-center">{settingsData.execution_period}</p>
+                        ) : (
+                            <p className="text-center text-muted-foreground">Nenhuma configuração encontrada.</p>
+                        )}
+                        </CardContent>
+                    </Card>
+
+                    <Card>
+                        <CardHeader className="bg-primary text-white py-2 px-4 rounded-t-lg">
+                        <CardTitle className="text-sm font-medium">ID do Cliente</CardTitle>
+                        </CardHeader>
+                        <CardContent className="p-4">
+                        <div className="flex items-center gap-2">
+                            <Input
+                            type="text"
+                            id="client-id"
+                            value={clientId}
+                            onChange={(e) => setClientId(e.target.value)}
+                            className="flex-1"
+                            />
+                            <Button onClick={handleSave} className="bg-primary hover:bg-primary/90">
+                            Salvar
+                            </Button>
                         </div>
+                        {saveSuccess && <p className="mt-2 text-primary text-sm">Configurações salvas com sucesso!</p>}
+                        </CardContent>
+                    </Card>
                     </div>
-                )}
-                <div className="flex flex-wrap -mx-3">
-                    <div className="mb-8 px-3 w-full lg:w-1/3">
-                        {/* <h2 className="text-xl font-semibold mb-3">Cliente:</h2> */}
-                        <table className="table-auto w-full bg-white shadow-md rounded">
-                            <thead className="bg-green-600 text-white">
-                                <tr>
-                                    <th className="px-4 py-2">Cliente</th>
-                                </tr>
-                            </thead>
-                            <tbody className="text-gray-700">
-                                {clientSelected ? (
-                                    <tr key={clientSelected.id}>
-                                        <td className="px-4 py-2 text-center">{clientSelected.companyname}</td>
-                                    </tr>
-                                ) : (
-                                    <tr>
-                                        <td className="px-4 py-2 text-center">Nenhum cliente encontrado.</td>
-                                    </tr>
-                                )}
-                            </tbody>
-                        </table>
+                </CardContent>
+                </Card>
+
+                <Card className="mb-6">
+                <CardHeader className="pb-3">
+                    <CardTitle>Impressoras cadastradas</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <Table>
+                    <TableHeader className="bg-primary text-white">
+                        <TableRow>
+                        <TableHead className="text-white">IP</TableHead>
+                        <TableHead className="text-white">Nome</TableHead>
+                        <TableHead className="text-white">Modelo</TableHead>
+                        <TableHead className="text-white">Toner</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {activePrinters.length > 0 && isClientActive ? (
+                        activePrinters.map((printer) => (
+                            <TableRow key={printer.id}>
+                            <TableCell className="text-center">{printer.printer_ip}</TableCell>
+                            <TableCell className="text-center">{printer.printer_name}</TableCell>
+                            <TableCell className="text-center">{printer.printer_brand_model}</TableCell>
+                            <TableCell className="text-center">{printer.printer_tonner_type}</TableCell>
+                            </TableRow>
+                        ))
+                        ) : (
+                        <TableRow>
+                            <TableCell colSpan={4} className="text-center">
+                            Nenhuma impressora encontrada para o cliente ou cliente está inativo.
+                            </TableCell>
+                        </TableRow>
+                        )}
+                    </TableBody>
+                    </Table>
+                </CardContent>
+                </Card>
+
+                <Card>
+                <CardHeader className="pb-3">
+                    <div className="flex justify-between items-center">
+                    <CardTitle>Últimos dados das impressoras</CardTitle>
+                    <Button
+                        onClick={() => {
+                        if (printers.length > 0 && isClientActive) {
+                            handleForceUpdate()
+                        }
+                        }}
+                        disabled={isUpdating || printers.length === 0 || !isClientActive}
+                        variant="outline"
+                        className="gap-2"
+                    >
+                        {isUpdating ? (
+                        <>
+                            <RefreshCw className="h-4 w-4 animate-spin" />
+                            Atualizando...
+                        </>
+                        ) : (
+                        <>
+                            <RefreshCw className="h-4 w-4" />
+                            Forçar atualização
+                        </>
+                        )}
+                    </Button>
                     </div>
-                    <div className="mb-8 px-3 w-full lg:w-1/3">
-                        {/* <h2 className="text-xl font-semibold mb-3">Periodicidade de aquisição de dados:</h2> */}
-                        <table className="table-auto w-full bg-white shadow-md rounded">
-                            <thead className="bg-green-600 text-white">
-                                <tr>
-                                    <th className="px-4 py-2">Período de Execução (horas)</th>
-                                </tr>
-                            </thead>
-                            <tbody className="text-gray-700">
-                                {settingsData ? (
-                                    <tr key={settingsData.id} className="border-b">
-                                        <td className="px-4 py-2 text-center">{settingsData.execution_period}</td>
-                                    </tr>
-                                ) : (
-                                    <tr>
-                                        <td className="px-4 py-2 text-center">Nenhuma configuração encontrada.</td>
-                                    </tr>
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
-                    <div className="mb-4 px-3 w-full lg:w-1/3">
-                        <table className="table-auto w-full bg-white shadow-md rounded">
-                            <thead className="bg-green-600 text-white">
-                                <tr>
-                                    <th className="px-4 py-2">ID do Cliente</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr>
-                                    <td className="px-4 py-2">
-                                        <div className="flex items-center space-x-3">
-                                            <input
-                                                type="text"
-                                                id="client-id"
-                                                value={clientId}
-                                                onChange={(e) => setClientId(e.target.value)}
-                                                className="flex-1 px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-green-600 focus:border-green-600 w-1/2"
-                                            />
-                                            <button 
-                                                onClick={handleSave} 
-                                                className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-600 focus:ring-opacity-50 w-1/2"
-                                            >
-                                                Salvar
-                                            </button>
-                                        </div>
-                                        {saveSuccess && <p className="mt-2 text-green-600">Configurações salvas com sucesso!</p>}
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
+                </CardHeader>
+                <CardContent>
+                    <Table>
+                    <TableHeader className="bg-primary text-white">
+                        <TableRow>
+                        <TableHead className="text-white">Data e Hora</TableHead>
+                        <TableHead className="text-white">Impressora</TableHead>
+                        <TableHead className="text-white">Contagem de Cópias</TableHead>
+                        <TableHead className="text-white">Nível de Toner</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {reports.length > 0 && printers.length > 0 && isClientActive ? (
+                        reports
+                            .slice()
+                            .sort((a, b) => new Date(b.date_time).getTime() - new Date(a.date_time).getTime())
+                            .slice(0, 50)
+                            .map((report) => {
+                            const printer = printers.find((p) => p.id === report.printer_id)
+                            return (
+                                <TableRow key={report.id}>
+                                <TableCell className="text-center">{report.date_time}</TableCell>
+                                <TableCell className="text-center">
+                                    {printer ? printer.printer_name : "Desconhecida"}
+                                </TableCell>
+                                <TableCell className="text-center">{report.current_copy_count}</TableCell>
+                                <TableCell className="text-center">{report.current_toner_level}</TableCell>
+                                </TableRow>
+                            )
+                            })
+                        ) : (
+                        <TableRow>
+                            <TableCell colSpan={4} className="text-center">
+                            Nenhum relatório encontrado para o cliente ou cliente está inativo.
+                            </TableCell>
+                        </TableRow>
+                        )}
+                    </TableBody>
+                    </Table>
+                </CardContent>
+                </Card>
+
+                <div className="flex justify-center items-center space-x-4 my-6">
+                <Badge variant="outline" className="text-md">
+                    Versão: {info.version}
+                </Badge>
+                <Badge variant="outline" className="text-md">
+                    Autor: {info.author}
+                </Badge>
                 </div>
-                <div className="mb-6">
-                    <h2 className="text-xl font-semibold mb-4">Impressoras cadastradas:</h2>
-                    <table className="min-w-full divide-y divide-gray-200 shadow-md rounded">
-                        <thead className="bg-green-600 text-white">
-                            <tr>
-                                <th className="px-4 py-2">IP</th>
-                                <th className="px-4 py-2">Nome</th>
-                                <th className="px-4 py-2">Modelo</th>
-                                <th className="px-4 py-2">Toner</th>
-                            </tr>
-                        </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
-                            {activePrinters.length > 0 && isClientActive ? (
-                                activePrinters.map((printer) => (
-                                    <tr key={printer.id}>
-                                        <td className="px-6 py-4 whitespace-nowrap text-center">{printer.printer_ip}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-center">{printer.printer_name}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-center">{printer.printer_brand_model}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-center">{printer.printer_tonner_type}</td>
-                                    </tr>
-                                ))
-                            ) : (
-                                <tr>
-                                    <td colSpan={4} className="px-6 py-4 whitespace-nowrap text-center">Nenhuma impressora encontrada para o cliente ou cliente está inativo.</td>
-                                </tr>
-                            )}
-                        </tbody>
-                    </table>
-                </div>
-                <div>
-                    <div className="flex justify-between items-center mb-4">
-                        <h2 className="text-xl font-semibold mb-4">Últimos dados das impressoras:</h2>
-                        <button 
-                            onClick={() => {
-                                if (printers.length > 0 && isClientActive) {
-                                    handleForceUpdate();
-                                }
-                            }}
-                            disabled={isUpdating || printers.length === 0 || !isClientActive}
-                            className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 disabled:bg-gray-400"
-                        >
-                            {isUpdating ? 'Atualizando...' : 'Forçar atualização'}
-                        </button>
+
+                <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                    <DialogTitle>Dados da Máquina</DialogTitle>
+                    <DialogDescription>Informações de acesso para esta máquina.</DialogDescription>
+                    </DialogHeader>
+                    <div className="grid gap-4 py-4">
+                    <div className="grid grid-cols-4 items-center gap-4">
+                        <span className="font-medium col-span-1">ID do Cliente:</span>
+                        <span className="col-span-3">{clientId}</span>
                     </div>
-                    <table className="min-w-full divide-y divide-gray-200 shadow-md rounded">
-                        <thead className="bg-green-600 text-white">
-                            <tr>
-                                <th className="px-4 py-2">Data e Hora</th>
-                                <th className="px-4 py-2">Impressora</th>
-                                <th className="px-4 py-2">Contagem de Cópias</th>
-                                <th className="px-4 py-2">Nível de Toner</th>
-                            </tr>
-                        </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
-                            {reports.length > 0 && printers.length > 0 && isClientActive ? (
-                                reports.slice().sort((a, b) => new Date(b.date_time).getTime() - new Date(a.date_time).getTime()).slice(0, 50).map((report) => {
-                                    const printer = printers.find(p => p.id === report.printer_id);
-                                    return (
-                                        <tr key={report.id}>
-                                            <td className="px-6 py-4 whitespace-nowrap text-center">{report.date_time}</td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-center">{printer ? printer.printer_name : 'Desconhecida'}</td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-center">{report.current_copy_count}</td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-center">{report.current_toner_level}</td>
-                                        </tr>
-                                    );
-                                })
-                            ) : (
-                                <tr>
-                                    <td colSpan={4} className="px-6 py-4 whitespace-nowrap text-center">Nenhum relatório encontrado para o cliente ou cliente está inativo.</td>
-                                </tr>
-                            )}
-                        </tbody>
-                    </table>
-                </div>
-                <div className="flex justify-center items-center space-x-4 my-4">
-                    <p className="text-md text-gray-700">Versão: <span className="font-semibold">{info.version}</span></p>
-                    <p className="text-md text-gray-700">Autor: <span className="font-semibold">{info.author}</span></p>
-                </div>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                        <span className="font-medium col-span-1">Nome da Máquina:</span>
+                        <span className="col-span-3">{machine}</span>
+                    </div>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                        <span className="font-medium col-span-1">Chave de acesso:</span>
+                        <span className="col-span-3">{formatToken(accessToken)}</span>
+                    </div>
+                    </div>
+                    <DialogFooter className="flex flex-col sm:flex-row gap-2">
+                    <Button onClick={handleCopyToClipboard} className="w-full sm:w-auto bg-primary hover:bg-primary/90 gap-2">
+                        <Clipboard className="h-4 w-4" />
+                        Copiar Dados
+                    </Button>
+                    <Button onClick={handleCloseModal} variant="outline" className="w-full sm:w-auto">
+                        Fechar
+                    </Button>
+                    </DialogFooter>
+                </DialogContent>
+                </Dialog>
             </div>
         </>
     );
