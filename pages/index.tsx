@@ -130,7 +130,7 @@ export default function Home() {
         } catch (error) {
             console.error('Error fetching data:', error);
         }
-    }, [customerId, accessToken]);
+    }, [api_url, customerId, accessToken]);
 
     const fetchPrinters = useCallback(async () => {
         if (!accessToken) {
@@ -152,7 +152,7 @@ export default function Home() {
         } catch (error) {
             console.error('Error fetching printers:', error);
         }
-    }, [customerId, accessToken]);
+    }, [api_url, customerId, accessToken]);
 
     const fetchSnmpCommands = useCallback(async () => {
         if (!accessToken) {
@@ -193,7 +193,7 @@ export default function Home() {
         catch (error) {
             console.error('Error fetching approved printers:', error);
         }
-    }, [activePrinters, accessToken]);
+    }, [api_url, activePrinters, accessToken, snmpCommands]);
 
     const fetchReports = useCallback(async () => {
         if (!accessToken) {
@@ -213,7 +213,7 @@ export default function Home() {
         } catch (error) {
             console.error('Error fetching reports:', error);
         }
-      }, [customerId, accessToken]);
+      }, [api_url, customerId, accessToken]);
 
     const postReportData = useCallback(async (reportData: { printerId: string; createdAt: string; commandName: string; value: string; }) => {
         if (!accessToken) {
@@ -236,7 +236,7 @@ export default function Home() {
         } catch (error) {
             console.error('Error posting report data:', error);
         }
-    }, [fetchReports, accessToken, customerId]);
+    }, [api_url, fetchReports, accessToken]);
 
     async function fetchSnmpData(ip: string, oid: string, community: string) {
         try {
@@ -277,7 +277,7 @@ export default function Home() {
                 }
             }
         }
-    }, [postReportData, activePrinters, snmpCommands]);
+    }, [postReportData, activePrinters, snmpCommands, fetchSnmpCommands]);
 
     const loadData = useCallback(async () => {
         if (customerId) {
@@ -413,11 +413,11 @@ export default function Home() {
     return (
         <>
             <Head>
-                <title>Suprify - Gestão de Outsourcing de Impressoras</title>
+                <title>Suprify Orbit - Gerenciador de Impressoras</title>
             </Head>
             <div className="max-w-4xl mx-auto p-4">
                 <div className="mb-4 flex items-center">
-                    <span className="font-bold text-lg text-primary">Suprify</span>
+                    <span className="font-bold text-lg text-primary">Suprify Orbit</span>
                 </div>
 
                 <Card className="mb-6">
