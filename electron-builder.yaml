@@ -2,21 +2,19 @@ appId: "br.com.suprify.orbit"
 productName: "Suprify Orbit"
 copyright: "Copyright (c) 2024 Suprify Orbit"
 files:
-  - main/main.js
-  - package.json
+  - "main/**"
+  - "package.json"
 directories:
   buildResources: build
   output: "dist"
 extraResources:
-  - "main/**/*"
-  - "public/"
-  - "out/"
+  - "out/**"
 win:
   target:
   - "dir" # Se você deseja empacotar como diretório para testes locais
   - "nsis" # Se você deseja criar um instalador para Windows
 #  - "portable" # Se você deseja uma versão portátil do aplicativo
-  - "zip" # Se você deseja empacotar como ZIP
+#  - "zip" # Se você deseja empacotar como ZIP
   icon: "public/printer_icon.ico"
 linux:
   target:

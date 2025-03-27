@@ -63,11 +63,11 @@ console.error = (...args) => {
   logToFile(`Error: ${args.join(' ')}`); // Adiciona erro ao arquivo de log
 };  
 
-// Servir arquivos do diretório de build
-const appServe = isDev ? null : serve({ directory: path.join(__dirname, "../out") });
+const basePath = isDev 
+    ? path.join(__dirname, "../out") 
+    : path.join(process.resourcesPath, "out");
 
-logToFile('__dirname: ' + __dirname);
-logToFile('app.getAppPath(): ' + app.getAppPath());
+const appServe = isDev ? null : serve({ directory: basePath });
 
 let mainWindow;
 let tray;
@@ -125,11 +125,11 @@ function createWindow() {
         mainWindow.hide();
     });
 
-    tray = new Tray(path.join(__dirname, '../public/printer.png'));
+    tray = new Tray(path.join(basePath, 'printer.png'));
     const contextMenu = Menu.buildFromTemplate([
-        { label: 'Configurações', icon: path.join(__dirname, '../public/settings.png'), click: () => openWindow() },
+        { label: 'Configurações', icon: path.join(basePath, 'settings.png'), click: () => openWindow() },
         { type: 'separator' },
-        { label: 'Fechar', icon: path.join(__dirname, '../public/close.png'), click: () => app.quit() }
+        { label: 'Fechar', icon: path.join(basePath, 'close.png'), click: () => app.quit() }
     ]);
     tray.setToolTip('Suprify Orbit');
     tray.setContextMenu(contextMenu);
