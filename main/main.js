@@ -12,6 +12,8 @@ const appDataPath = process.env.APPDATA || (process.platform == 'darwin' ? proce
 const configPath = path.join(appDataPath, 'suprify-orbit', 'config.json');
 const logFilePath = path.join(appDataPath, 'suprify-orbit', 'app.log');
 
+const isDev = !app.isPackaged; // Verifica se está rodando em desenvolvimento
+
 async function getMachineUUID() {
     const uuid = await machineId();
     return uuid;
@@ -61,9 +63,11 @@ console.error = (...args) => {
   logToFile(`Error: ${args.join(' ')}`); // Adiciona erro ao arquivo de log
 };  
 
-const appServe = app.isPackaged ? serve({
-    directory: path.join(__dirname, "../out")
-  }) : null;
+// Servir arquivos do diretório de build
+const appServe = isDev ? null : serve({ directory: path.join(__dirname, "../out") });
+
+logToFile('__dirname: ' + __dirname);
+logToFile('app.getAppPath(): ' + app.getAppPath());
 
 let mainWindow;
 let tray;
@@ -80,17 +84,19 @@ function createWindow() {
 
     mainWindow.removeMenu();
 
-    if (app.isPackaged) {
-        appServe(mainWindow).then(() => {
-          mainWindow.loadURL("app://-");
-        });
-      } else {
+    if (isDev) {
+        // Se estiver em desenvolvimento, abre o servidor local
         mainWindow.loadURL("http://localhost:3333");
         mainWindow.webContents.openDevTools();
         mainWindow.webContents.on("did-fail-load", (e, code, desc) => {
-          mainWindow.webContents.reloadIgnoringCache();
+            mainWindow.webContents.reloadIgnoringCache();
         });
-      }
+    } else {
+        // Se estiver empacotado, carrega os arquivos estáticos corretamente
+        appServe(mainWindow).then(() => {
+            mainWindow.loadURL("app://-");
+        });
+    }
 
     const packageJsonPath = path.join(app.getAppPath(), 'package.json');
     const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
