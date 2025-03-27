@@ -146,7 +146,7 @@ function getSnmpData(ip, oid, community) {
         session.get([oid], (error, varbinds) => {
             if (error) {
                 console.error(`Erro ao coletar dados SNMP para ${ip}: ${error}`);
-                resolve(error); // Retorna uma string com erro
+                resolve(error.name); // Retorna apenas o nome do erro
             } else {
                 if (snmp.isVarbindError(varbinds[0])) {
                     console.error(`Erro Varbind para ${ip}: ${snmp.varbindError(varbinds[0])}`);
