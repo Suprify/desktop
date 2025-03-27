@@ -18,16 +18,12 @@ import { Clipboard, RefreshCw } from "lucide-react"
 import { toast } from "sonner"
 
 interface Client {
-    id: number;
-    client_id: number;
-    companyname: string;
+    id: string;
+    companyId: string;
+    name: string;
+    billingDay: number;
+    executionPeriod: number;
     status: string;
-}
-interface Setting {
-    id: number;
-    client_id: number;
-    billing_day: string;
-    execution_period: number;
 }
 
 interface Printers {
@@ -53,13 +49,12 @@ interface Reports {
 }
 
 export default function Home() {
-    const [settingsData, setSettingsData] = useState<Setting | null>(null);
-    const [clientId, setClientId] = useState('');
+    const [customerId, setCustomerId] = useState('');
     const [saveSuccess, setSaveSuccess] = useState(false);
     const [printers, setPrinters] = useState<Printers[]>([]);
     const [activePrinters, setActivePrinters] = useState<Printers[]>([]);
     const [reports, setReports] = useState<Reports[]>([]);
-    const [clientSelected, setSelectedClient] = useState<Client | null>(null);
+    const [customerSelected, setCustomerSelected] = useState<Client | null>(null);
     const [isClientActive, setIsClientActive] = useState(true);
     const [isUpdating, setIsUpdating] = useState(false);
     const [info, setInfo] = useState({ version: '', author: '' });
@@ -68,6 +63,7 @@ export default function Home() {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [copySuccess, setCopySuccess] = useState(false);
 
+    const api_url = process.env.NEXT_PUBLIC_API_URL;
 
     const handleOpenModal = async () => {
         /* if (printers.length > 0 && isClientActive) { */
@@ -91,33 +87,24 @@ export default function Home() {
         fetchAccessToken();
     }, [fetchAccessToken]);
 
-    const fetchSettings = useCallback(async () => {
+    const fetchCustomer = useCallback(async () => {
         if (!accessToken) {
             return; 
         }
         
         try {
-            const clientResponse = await fetch(`https://pdm.ingatec.com.br/api/clients/client_id/${clientId}`, {
+            const clientResponse = await fetch(`${api_url}/api/customers/${customerId}`, {
                 method: 'GET',
                 headers: {
                   'Authorization': `Bearer ${accessToken}`,
-                  'Client-Id': clientId
                 }
             });
-            const [client] = await clientResponse.json();
-            setSelectedClient(client);
+            const client = await clientResponse.json();
+
+            console.log('Client:', client);
+            setCustomerSelected(client);      
     
-            const settingResponse = await fetch(`https://pdm.ingatec.com.br/api/settings/client_id/${clientId}`, {
-                method: 'GET',
-                headers: {
-                  'Authorization': `Bearer ${accessToken}`,
-                  'Client-Id': clientId
-                }
-            });
-            const [setting] = await settingResponse.json();
-            setSettingsData(setting);          
-    
-            if (client && client.status == 'Ativo') {
+            if (client && client.status == 'ACTIVE') {
                 setIsClientActive(true);
             } else {
                 setIsClientActive(false);
@@ -125,7 +112,7 @@ export default function Home() {
         } catch (error) {
             console.error('Error fetching data:', error);
         }
-    }, [clientId, accessToken]);
+    }, [customerId, accessToken]);
 
     const fetchPrinters = useCallback(async () => {
         if (!accessToken) {
@@ -133,11 +120,10 @@ export default function Home() {
         }
         
         try {
-            const printersResponse = await fetch(`https://pdm.ingatec.com.br/api/printers/client_id/${clientId}`, {
+            const printersResponse = await fetch(`/api/printers/client_id/${customerId}`, {
                 method: 'GET',
                 headers: {
                   'Authorization': `Bearer ${accessToken}`,
-                  'Client-Id': clientId
                 }
             });
             const printersData = await printersResponse.json();
@@ -147,7 +133,7 @@ export default function Home() {
         } catch (error) {
             console.error('Error fetching printers:', error);
         }
-    }, [clientId, accessToken]);    
+    }, [customerId, accessToken]);    
 
     const fetchReports = useCallback(async () => {
         if (!accessToken) {
@@ -155,11 +141,10 @@ export default function Home() {
         }
         
         try {
-            const reportsResponse = await fetch(`https://pdm.ingatec.com.br/api/reports/client_id/${clientId}`, {
+            const reportsResponse = await fetch(`/api/reports/client_id/${customerId}`, {
                 method: 'GET',
                 headers: {
                   'Authorization': `Bearer ${accessToken}`,
-                  'Client-Id': clientId
                 }
             });
             const reportsData = await reportsResponse.json();
@@ -167,7 +152,7 @@ export default function Home() {
         } catch (error) {
             console.error('Error fetching reports:', error);
         }
-      }, [clientId, accessToken]);
+      }, [customerId, accessToken]);
 
     const postReportData = useCallback(async (reportData: { client_id: number; printer_id: number; date_time: string; current_copy_count: number; current_toner_level: string; }) => {
         if (!accessToken) {
@@ -175,12 +160,11 @@ export default function Home() {
         }
         
         try {
-            const response = await fetch('https://pdm.ingatec.com.br/api/reports', {
+            const response = await fetch('/api/reports', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${accessToken}`,
-                    'Client-Id': clientId
                 },
                 body: JSON.stringify(reportData)
             });
@@ -191,7 +175,7 @@ export default function Home() {
         } catch (error) {
             console.error('Error posting report data:', error);
         }
-    }, [fetchReports, accessToken, clientId]);
+    }, [fetchReports, accessToken, customerId]);
 
     async function fetchSnmpData(ip: number, oid: string, community: string) {
         try {
@@ -231,19 +215,19 @@ export default function Home() {
     }, [postReportData, activePrinters]);
 
     const loadData = useCallback(async () => {
-        if (clientId) {
-          await fetchSettings();
+        if (customerId) {
+          await fetchCustomer();
           await fetchPrinters();
           await fetchReports();
         }
-    }, [clientId, fetchPrinters, fetchReports, fetchSettings]);
+    }, [customerId, fetchPrinters, fetchReports, fetchCustomer]);
 
     const executeReportCollectionIfNeeded = useCallback(async () => {
         const now = new Date();
         const lastReportTime = new Date(localStorage.getItem('lastReportTime') || 0);
     
-        if (settingsData) {
-            const nextExecutionTime = new Date(lastReportTime.getTime() + settingsData.execution_period * 60 * 60 * 1000);
+        if (customerSelected) {
+            const nextExecutionTime = new Date(lastReportTime.getTime() + customerSelected.executionPeriod * 60 * 60 * 1000);
     
             if (now >= nextExecutionTime) {
                 await loadData();
@@ -253,7 +237,7 @@ export default function Home() {
         } else {
             console.error('Execution settings not found for this client.');
         }
-    }, [settingsData, collectPrinterDataAndReport, loadData]);
+    }, [customerSelected, collectPrinterDataAndReport, loadData]);
 
     const handleForceUpdate = useCallback(async () => {
         setIsUpdating(true);
@@ -277,9 +261,9 @@ export default function Home() {
     }, [collectPrinterDataAndReport, loadData]);
     
     useEffect(() => {
-        const storedClientId = localStorage.getItem('clientId');
+        const storedClientId = localStorage.getItem('customerId');
         if (storedClientId) {
-            setClientId(storedClientId);
+            setCustomerId(storedClientId);
         }
     }, []);
 
@@ -287,8 +271,8 @@ export default function Home() {
         if (typeof window !== "undefined" && window.electronAPI) {
             window.electronAPI.on('config-data', (data: { client_id: { toString: () => any; }; }) => {
                 const newClientId = data.client_id.toString();
-                setClientId(newClientId);
-                localStorage.setItem('clientId', newClientId);
+                setCustomerId(newClientId);
+                localStorage.setItem('customerId', newClientId);
             });
     
             return () => {
@@ -312,8 +296,8 @@ export default function Home() {
     }, [loadData, isClientActive, executeReportCollectionIfNeeded]);
 
     const handleSave = () => {
-        localStorage.setItem('clientId', clientId);
-        window.electronAPI.send('save-settings', { client_id: parseInt(clientId, 10) });
+        localStorage.setItem('customerId', customerId);
+        window.electronAPI.send('save-settings', { client_id: parseInt(customerId, 10) });
         setSaveSuccess(true);
         toast.success("Configurações salvas", {
             description: "As configurações foram salvas com sucesso.",
@@ -324,7 +308,7 @@ export default function Home() {
     const handleCloseModal = () => setIsModalOpen(false);
 
     const handleCopyToClipboard = () => {
-        const textToCopy = `ID do Cliente: ${clientId}\nNome da Máquina: ${machine}\nChave de acesso: ${accessToken}`;
+        const textToCopy = `ID do Cliente: ${customerId}\nNome da Máquina: ${machine}\nChave de acesso: ${accessToken}`;
         navigator.clipboard.writeText(textToCopy).then(() => {
             setCopySuccess(true);
             toast.success("Copiado!", {
@@ -388,8 +372,8 @@ export default function Home() {
                         <CardTitle className="text-sm font-medium">Cliente</CardTitle>
                         </CardHeader>
                         <CardContent className="p-4">
-                        {clientSelected ? (
-                            <p className="text-center">{clientSelected.companyname}</p>
+                        {customerSelected ? (
+                            <p className="text-center">{customerSelected.name}</p>
                         ) : (
                             <p className="text-center text-muted-foreground">Nenhum cliente encontrado.</p>
                         )}
@@ -401,8 +385,8 @@ export default function Home() {
                         <CardTitle className="text-sm font-medium">Período de Execução (horas)</CardTitle>
                         </CardHeader>
                         <CardContent className="p-4">
-                        {settingsData ? (
-                            <p className="text-center">{settingsData.execution_period}</p>
+                        {customerSelected ? (
+                            <p className="text-center">{customerSelected.executionPeriod}</p>
                         ) : (
                             <p className="text-center text-muted-foreground">Nenhuma configuração encontrada.</p>
                         )}
@@ -418,8 +402,8 @@ export default function Home() {
                             <Input
                             type="text"
                             id="client-id"
-                            value={clientId}
-                            onChange={(e) => setClientId(e.target.value)}
+                            value={customerId}
+                            onChange={(e) => setCustomerId(e.target.value)}
                             className="flex-1"
                             />
                             <Button onClick={handleSave} className="bg-primary hover:bg-primary/90">
@@ -556,7 +540,7 @@ export default function Home() {
                     <div className="grid gap-4 py-4">
                     <div className="grid grid-cols-4 items-center gap-4">
                         <span className="font-medium col-span-1">ID do Cliente:</span>
-                        <span className="col-span-3">{clientId}</span>
+                        <span className="col-span-3">{customerId}</span>
                     </div>
                     <div className="grid grid-cols-4 items-center gap-4">
                         <span className="font-medium col-span-1">Nome da Máquina:</span>
