@@ -16,6 +16,8 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Clipboard, RefreshCw } from "lucide-react"
 import { toast } from "sonner"
+import { format } from "date-fns"
+import { ptBR } from "date-fns/locale"
 
 interface Client {
     id: string;
@@ -27,25 +29,40 @@ interface Client {
 }
 
 interface Printers {
-    id: number;
-    client_id: number;
-    printer_ip: number;
-    printer_name: string;
-    printer_brand_model: string;
-    printer_tonner_type: string;
-    snmp_oid_community: string;
-    snmp_oid_copy_count: string;
-    snmp_oid_toner_level: string;
+    id: string;
+    customerId: string;
+    ipAddress: string;
+    serialNumber: string;
+    model: string;
+    networkName: string;
+    printerType: string;
     status: string;
+    mode: string;
+    supplyType: string;
+    machineId: string;
+    approvedPrinterId: string;
+}
+
+interface SnmpCommands {
+    id: string;
+    approvedPrinterId: string;
+    commandName: string;
+    oid: string;
+    community: string;
 }
 
 interface Reports {
-    id: number;
-    client_id: number;
-    printer_id: number;
-    date_time: string;
-    current_copy_count: number;
-    current_toner_level: string;
+    id: string;
+    printerId: string;
+    createdAt: string;
+    commandName: string;
+    value: string;
+    ipAddress: string,
+    serialNumber: string,
+    model: string,
+    networkName: string,
+    printerType: string,
+    status: string
 }
 
 export default function Home() {
@@ -53,6 +70,7 @@ export default function Home() {
     const [saveSuccess, setSaveSuccess] = useState(false);
     const [printers, setPrinters] = useState<Printers[]>([]);
     const [activePrinters, setActivePrinters] = useState<Printers[]>([]);
+    const [snmpCommands, setSnmpCommands] = useState<SnmpCommands[]>([]);
     const [reports, setReports] = useState<Reports[]>([]);
     const [customerSelected, setCustomerSelected] = useState<Client | null>(null);
     const [isClientActive, setIsClientActive] = useState(true);
@@ -120,7 +138,7 @@ export default function Home() {
         }
         
         try {
-            const printersResponse = await fetch(`/api/printers/client_id/${customerId}`, {
+            const printersResponse = await fetch(`${api_url}/api/printers/${customerId}`, {
                 method: 'GET',
                 headers: {
                   'Authorization': `Bearer ${accessToken}`,
@@ -128,12 +146,54 @@ export default function Home() {
             });
             const printersData = await printersResponse.json();
             setPrinters(printersData);
-            const activePrinters = printersData.filter((printer: { status: string; }) => printer.status === 'Ativa');
-            setActivePrinters(activePrinters);
+            const activePrintersData = await printersData.filter((printer: { status: string; mode: string; }) => printer.status === 'ACTIVE' && printer.mode === 'AUTO');
+            setActivePrinters(activePrintersData);
+            console.log('activePrintersData:', activePrintersData);
         } catch (error) {
             console.error('Error fetching printers:', error);
         }
-    }, [customerId, accessToken]);    
+    }, [customerId, accessToken]);
+
+    const fetchSnmpCommands = useCallback(async () => {
+        if (!accessToken) {
+            return; 
+        }
+
+        try {
+            const updatedSnmpCommands: SnmpCommands[] = [...snmpCommands];
+
+            for (const printer of activePrinters) {
+                try {
+                    console.log('printer:', printer);
+                    console.log('Chamando API para buscar comandos SNMP...');
+                    const snmpCommandsResponse = await fetch(`${api_url}/api/snmpcommands?approvedPrinterId=${printer.approvedPrinterId}`, {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': `Bearer ${accessToken}`,
+                        }
+                    });
+
+                    const snmpCommandsData: SnmpCommands[] = await snmpCommandsResponse.json();
+
+                    snmpCommandsData.forEach((command) => {
+                        const exists = updatedSnmpCommands.some((existingCommand) => existingCommand.id === command.id);
+                        if (!exists) {
+                            updatedSnmpCommands.push(command);
+                        }
+                    });
+                } catch (error) {
+                    console.error(`Error fetching SNMP commands for printer ${printer.id}:`, error);
+                }
+            }
+
+            setSnmpCommands(updatedSnmpCommands);
+
+            console.log('snmpCommands:', updatedSnmpCommands);
+        }
+        catch (error) {
+            console.error('Error fetching approved printers:', error);
+        }
+    }, [activePrinters, accessToken]);
 
     const fetchReports = useCallback(async () => {
         if (!accessToken) {
@@ -141,7 +201,7 @@ export default function Home() {
         }
         
         try {
-            const reportsResponse = await fetch(`/api/reports/client_id/${customerId}`, {
+            const reportsResponse = await fetch(`${api_url}/api/reports?customerId=${customerId}`, {
                 method: 'GET',
                 headers: {
                   'Authorization': `Bearer ${accessToken}`,
@@ -149,18 +209,19 @@ export default function Home() {
             });
             const reportsData = await reportsResponse.json();
             setReports(reportsData);
+            console.log('reports:', reportsData);
         } catch (error) {
             console.error('Error fetching reports:', error);
         }
       }, [customerId, accessToken]);
 
-    const postReportData = useCallback(async (reportData: { client_id: number; printer_id: number; date_time: string; current_copy_count: number; current_toner_level: string; }) => {
+    const postReportData = useCallback(async (reportData: { printerId: string; createdAt: string; commandName: string; value: string; }) => {
         if (!accessToken) {
             return; 
         }
         
         try {
-            const response = await fetch('/api/reports', {
+            const response = await fetch(`${api_url}/api/reports`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -177,14 +238,10 @@ export default function Home() {
         }
     }, [fetchReports, accessToken, customerId]);
 
-    async function fetchSnmpData(ip: number, oid: string, community: string) {
+    async function fetchSnmpData(ip: string, oid: string, community: string) {
         try {
             const result = await window.electronAPI.getSnmpData(ip, oid, community);
-            if (typeof result === 'number') {
-                return result;
-            } else {
-                throw new Error('The returned value is not a number.');
-            }
+            return result;
         } catch (error) {
             console.error('Error fetching SNMP data:', error);
             throw error;
@@ -192,27 +249,35 @@ export default function Home() {
     }
 
     const collectPrinterDataAndReport = useCallback(async () => {
-        const currentTime = new Date().toLocaleString('sv', { timeZone: 'America/Sao_Paulo' }).replace(' ', 'T');
-        
+        const currentTime = new Date().toISOString();
+        if (activePrinters.length === 0) {
+            console.error('No active printers found.');
+            return;
+        }
+        await fetchSnmpCommands();
         for (const printer of activePrinters) {
-            try {
-                const copyCount = await fetchSnmpData(printer.printer_ip, printer.snmp_oid_copy_count, printer.snmp_oid_community);
-                const tonerLevel = await fetchSnmpData(printer.printer_ip, printer.snmp_oid_toner_level, printer.snmp_oid_community);
-
-                const reportData = {
-                    client_id: printer.client_id,
-                    printer_id: printer.id,
-                    date_time: currentTime,
-                    current_copy_count: copyCount,
-                    current_toner_level: tonerLevel.toString()
-                };
-                
-                await postReportData(reportData);
-            } catch (error) {
-                console.error(`Error collecting data for printer ${printer.id}:`, error);
+            for (const command of snmpCommands) {
+                try {
+                    const value = await fetchSnmpData(printer.ipAddress, command.oid, command.community);
+                    console.log('SNMP data:', value);
+                    if (value === undefined || value === null) {
+                        console.error(`Error fetching SNMP data for printer ${printer.id} and command ${command.commandName}`);
+                        continue;
+                    }
+                    const reportData = {
+                        printerId: printer.id,
+                        createdAt: currentTime,
+                        commandName: command.commandName,
+                        value: value.toString()
+                    };
+                    console.log('reportData POST:', reportData);
+                    await postReportData(reportData);
+                } catch (error) {
+                    console.error(`Error collecting data for printer ${printer.id}:`, error);
+                }
             }
         }
-    }, [postReportData, activePrinters]);
+    }, [postReportData, activePrinters, snmpCommands]);
 
     const loadData = useCallback(async () => {
         if (customerId) {
@@ -242,7 +307,6 @@ export default function Home() {
     const handleForceUpdate = useCallback(async () => {
         setIsUpdating(true);
         const now = new Date();
-        const lastReportTime = new Date(localStorage.getItem('lastReportTime') || 0);
     
         try {
             await loadData();
@@ -426,19 +490,21 @@ export default function Home() {
                     <TableHeader className="bg-primary text-white">
                         <TableRow>
                         <TableHead className="text-white">IP</TableHead>
-                        <TableHead className="text-white">Nome</TableHead>
+                        <TableHead className="text-white">Número de Série</TableHead>
                         <TableHead className="text-white">Modelo</TableHead>
-                        <TableHead className="text-white">Toner</TableHead>
+                        <TableHead className="text-white">Nome na Rede</TableHead>
+                        <TableHead className="text-white">Suprimento</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         {activePrinters.length > 0 && isClientActive ? (
                         activePrinters.map((printer) => (
                             <TableRow key={printer.id}>
-                            <TableCell className="text-center">{printer.printer_ip}</TableCell>
-                            <TableCell className="text-center">{printer.printer_name}</TableCell>
-                            <TableCell className="text-center">{printer.printer_brand_model}</TableCell>
-                            <TableCell className="text-center">{printer.printer_tonner_type}</TableCell>
+                            <TableCell className="text-center">{printer.ipAddress}</TableCell>
+                            <TableCell className="text-center">{printer.serialNumber}</TableCell>
+                            <TableCell className="text-center">{printer.model}</TableCell>
+                            <TableCell className="text-center">{printer.networkName}</TableCell>
+                            <TableCell className="text-center">{printer.supplyType}</TableCell>
                             </TableRow>
                         ))
                         ) : (
@@ -486,29 +552,34 @@ export default function Home() {
                     <TableHeader className="bg-primary text-white">
                         <TableRow>
                         <TableHead className="text-white">Data e Hora</TableHead>
-                        <TableHead className="text-white">Impressora</TableHead>
-                        <TableHead className="text-white">Contagem de Cópias</TableHead>
-                        <TableHead className="text-white">Nível de Toner</TableHead>
+                        <TableHead className="text-white">Número de Série</TableHead>
+                        <TableHead className="text-white">Modelo</TableHead>
+                        <TableHead className="text-white">Nome na Rede</TableHead>
+                        <TableHead className="text-white">Nome do Comando</TableHead>
+                        <TableHead className="text-white">Valor</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {reports.length > 0 && printers.length > 0 && isClientActive ? (
+                        {reports.length > 0 && activePrinters.length > 0 && isClientActive ? (
                         reports
+                            .filter((report) => activePrinters.some((printer) => printer.id === report.printerId))
                             .slice()
-                            .sort((a, b) => new Date(b.date_time).getTime() - new Date(a.date_time).getTime())
-                            .slice(0, 50)
+                            .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+                            .slice(0, 20)
                             .map((report) => {
-                            const printer = printers.find((p) => p.id === report.printer_id)
+                            const printer = activePrinters.find((p) => p.id === report.printerId);
                             return (
                                 <TableRow key={report.id}>
-                                <TableCell className="text-center">{report.date_time}</TableCell>
                                 <TableCell className="text-center">
-                                    {printer ? printer.printer_name : "Desconhecida"}
+                                    {format(new Date(report.createdAt), 'dd/MM/yyyy HH:mm:ss', { locale: ptBR })}
                                 </TableCell>
-                                <TableCell className="text-center">{report.current_copy_count}</TableCell>
-                                <TableCell className="text-center">{report.current_toner_level}</TableCell>
+                                <TableCell className="text-center">{report.serialNumber}</TableCell>
+                                <TableCell className="text-center">{report.model}</TableCell>
+                                <TableCell className="text-center">{report.networkName}</TableCell>
+                                <TableCell className="text-center">{report.commandName}</TableCell>
+                                <TableCell className="text-center">{report.value}</TableCell>
                                 </TableRow>
-                            )
+                            );
                             })
                         ) : (
                         <TableRow>

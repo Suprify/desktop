@@ -9,8 +9,8 @@ const { machineId } = require('node-machine-id');
 const crypto = require('crypto');
 
 const appDataPath = process.env.APPDATA || (process.platform == 'darwin' ? process.env.HOME + '/Library/Preferences' : '/var/local');
-const configPath = path.join(appDataPath, 'printers-data-manager', 'config.json');
-const logFilePath = path.join(appDataPath, 'printers-data-manager', 'app.log');
+const configPath = path.join(appDataPath, 'suprify-orbit', 'config.json');
+const logFilePath = path.join(appDataPath, 'suprify-orbit', 'app.log');
 
 async function getMachineUUID() {
     const uuid = await machineId();
@@ -98,7 +98,7 @@ function createWindow() {
     const appAuthor = packageJson.author;
 
     mainWindow.webContents.on('did-finish-load', () => {
-        const configDirectory = path.join(appDataPath, 'printers-data-manager');
+        const configDirectory = path.join(appDataPath, 'suprify-orbit');
         
         if (!fs.existsSync(configDirectory)) {
             fs.mkdirSync(configDirectory, { recursive: true });
@@ -125,7 +125,7 @@ function createWindow() {
         { type: 'separator' },
         { label: 'Fechar', icon: path.join(__dirname, '../public/close.png'), click: () => app.quit() }
     ]);
-    tray.setToolTip('Printers Data Manager');
+    tray.setToolTip('Suprify Orbit');
     tray.setContextMenu(contextMenu);
 }
 
@@ -140,14 +140,15 @@ function getSnmpData(ip, oid, community) {
         session.get([oid], (error, varbinds) => {
             if (error) {
                 console.error(`Erro ao coletar dados SNMP para ${ip}: ${error}`);
-                resolve(0); // Retorna 0 em caso de erro
+                resolve(error); // Retorna uma string com erro
             } else {
                 if (snmp.isVarbindError(varbinds[0])) {
                     console.error(`Erro Varbind para ${ip}: ${snmp.varbindError(varbinds[0])}`);
-                    resolve(0); // Retorna 0 em caso de erro Varbind
+                    resolve("Erro Varbind"); // Retorna uma string indicando erro Varbind
                 } else {
-                    const value = parseInt(varbinds[0].value.toString(), 10);
-                    resolve(isNaN(value) ? 0 : value); // Retorna 0 se o valor não for um número
+                    const value = varbinds[0].value.toString();
+                    console.log(`Valor SNMP para ${ip}: ${value}`);
+                    resolve(value); // Retorna o valor como string
                 }
             }
             session.close();
@@ -179,7 +180,7 @@ app.on('ready', () => {
 app.on('before-quit', () => {
     if (os.platform() === 'win32') {
         // Encerra o processo pelo nome no Windows
-        exec('taskkill /IM "Printers Data Manager.exe" /F', (error, stdout, stderr) => {
+        exec('taskkill /IM "Suprify Orbit.exe" /F', (error, stdout, stderr) => {
             if (error) {
                 console.error(`Erro ao encerrar processo: ${error}`);
                 return;
@@ -189,7 +190,7 @@ app.on('before-quit', () => {
     } else {
         // Handle process termination for Linux and macOS if needed
         // For example, you can use `pkill` for Linux
-        exec('pkill -f "Printers Data Manager"', (error, stdout, stderr) => {
+        exec('pkill -f "Suprify Orbit"', (error, stdout, stderr) => {
             if (error) {
                 console.error(`Erro ao encerrar processo: ${error}`);
                 return;

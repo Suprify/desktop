@@ -1,6 +1,6 @@
-appId: "io.github.douglasnev3s.PrintersDataManager"
-productName: "Printers Data Manager"
-copyright: "Copyright (c) 2024 Nevix Digital"
+appId: "br.com.suprify.orbit"
+productName: "Suprify Orbit"
+copyright: "Copyright (c) 2024 Suprify Orbit"
 files:
   - main/main.js
   - package.json
