@@ -470,7 +470,7 @@ export default function Home() {
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <Card>
                         <CardHeader className="bg-primary text-white py-2 px-4 rounded-t-lg">
-                        <CardTitle className="text-sm font-medium">Cliente</CardTitle>
+                        <CardTitle className="text-sm text-center font-medium">Cliente</CardTitle>
                         </CardHeader>
                         <CardContent className="p-4">
                         {customerSelected ? (
@@ -483,7 +483,7 @@ export default function Home() {
 
                     <Card>
                         <CardHeader className="bg-primary text-white py-2 px-4 rounded-t-lg">
-                        <CardTitle className="text-sm font-medium">Período de Execução (horas)</CardTitle>
+                        <CardTitle className="text-sm text-center font-medium">Período de Execução (horas)</CardTitle>
                         </CardHeader>
                         <CardContent className="p-4">
                         {customerSelected ? (
@@ -496,7 +496,7 @@ export default function Home() {
 
                     <Card>
                         <CardHeader className="bg-primary text-white py-2 px-4 rounded-t-lg">
-                        <CardTitle className="text-sm font-medium">ID do Cliente</CardTitle>
+                        <CardTitle className="text-sm text-center font-medium">ID do Cliente</CardTitle>
                         </CardHeader>
                         <CardContent className="p-4">
                         <div className="flex items-center gap-2">
@@ -526,11 +526,11 @@ export default function Home() {
                     <Table>
                     <TableHeader className="bg-primary text-white">
                         <TableRow>
-                        <TableHead className="text-white">IP</TableHead>
-                        <TableHead className="text-white">Número de Série</TableHead>
-                        <TableHead className="text-white">Modelo</TableHead>
-                        <TableHead className="text-white">Nome na Rede</TableHead>
-                        <TableHead className="text-white">Suprimento</TableHead>
+                        <TableHead className="text-white text-center">IP</TableHead>
+                        <TableHead className="text-white text-center">Número de Série</TableHead>
+                        <TableHead className="text-white text-center">Modelo</TableHead>
+                        <TableHead className="text-white text-center">Nome na Rede</TableHead>
+                        <TableHead className="text-white text-center">Suprimento</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -588,12 +588,12 @@ export default function Home() {
                     <Table>
                     <TableHeader className="bg-primary text-white">
                         <TableRow>
-                        <TableHead className="text-white">Data e Hora</TableHead>
-                        <TableHead className="text-white">Número de Série</TableHead>
-                        <TableHead className="text-white">Modelo</TableHead>
-                        <TableHead className="text-white">Nome na Rede</TableHead>
-                        <TableHead className="text-white">Nome do Comando</TableHead>
-                        <TableHead className="text-white">Valor</TableHead>
+                        <TableHead className="text-white text-center">Data e Hora</TableHead>
+                        <TableHead className="text-white text-center">Número de Série</TableHead>
+                        <TableHead className="text-white text-center">Modelo</TableHead>
+                        <TableHead className="text-white text-center">Nome na Rede</TableHead>
+                        <TableHead className="text-white text-center">Nome do Comando</TableHead>
+                        <TableHead className="text-white text-center">Valor</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
