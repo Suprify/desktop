@@ -13,8 +13,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Badge } from "@/components/ui/badge"
-import { Clipboard, RefreshCw } from "lucide-react"
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+  } from "@/components/ui/tooltip"
+import { Clipboard, ClipboardCheck, RefreshCw } from "lucide-react"
 import { toast } from "sonner"
 import { format } from "date-fns"
 import { ptBR } from "date-fns/locale"
@@ -89,6 +94,8 @@ export default function Home() {
     const [accessToken, setAccessToken] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [copySuccess, setCopySuccess] = useState(false);
+    const [copyMachineSuccess, setCopyMachineSuccess] = useState(false);
+    const [copyAccessTokenSuccess, setCopyAccessTokenSuccess] = useState(false);
 
     const api_url = process.env.NEXT_PUBLIC_API_URL;
 
@@ -450,11 +457,20 @@ export default function Home() {
     return (
         <>
             <Head>
-                <title>Suprify Orbit - Gerenciador de Impressoras</title>
+                <title>Suprify | Orbit - Gerenciador de Impressoras</title>
             </Head>
             <div className="max-w-4xl mx-auto p-4">
                 <div className="mb-4 flex items-center">
-                    <span className="font-bold text-lg text-primary">Suprify Orbit</span>
+                   {/*  <span className="font-bold text-lg text-primary">Suprify Orbit</span> */}
+                    {/* Logo da Suprify Orbit */}
+                    <div className="logo">
+                        <Image
+                            src="/suprify_orbit_logo.png" // O caminho é relativo à pasta public
+                            alt="Logo Suprify Orbit"
+                            width={200} // Defina a largura conforme necessário
+                            height={60} // Defina a altura conforme necessário
+                        />
+                    </div>
                 </div>
 
                 <Card className="mb-6">
@@ -520,10 +536,10 @@ export default function Home() {
 
                 <Card className="mb-6">
                 <CardHeader className="pb-3">
-                    <CardTitle>Impressoras cadastradas</CardTitle>
+                    <CardTitle className="mb-2">Impressoras cadastradas</CardTitle>
                 </CardHeader>
                 <CardContent>
-                    <Table>
+                    <Table className="rounded-lg overflow-hidden">
                     <TableHeader className="bg-primary text-white">
                         <TableRow>
                         <TableHead className="text-white text-center">IP</TableHead>
@@ -533,7 +549,7 @@ export default function Home() {
                         <TableHead className="text-white text-center">Suprimento</TableHead>
                         </TableRow>
                     </TableHeader>
-                    <TableBody>
+                    <TableBody className="border border-gray-100 shadow-lg rounded-lg">
                         {activePrinters.length > 0 && isClientActive ? (
                         activePrinters.map((printer) => (
                             <TableRow key={printer.id}>
@@ -585,7 +601,7 @@ export default function Home() {
                     </div>
                 </CardHeader>
                 <CardContent>
-                    <Table>
+                    <Table className="rounded-lg overflow-hidden">
                     <TableHeader className="bg-primary text-white">
                         <TableRow>
                         <TableHead className="text-white text-center">Data e Hora</TableHead>
@@ -596,13 +612,13 @@ export default function Home() {
                         <TableHead className="text-white text-center">Valor</TableHead>
                         </TableRow>
                     </TableHeader>
-                    <TableBody>
+                    <TableBody className="border border-gray-100 shadow-lg rounded-lg">
                         {reports.length > 0 && activePrinters.length > 0 && isClientActive ? (
                         reports
                             .filter((report) => activePrinters.some((printer) => printer.id === report.printerId))
                             .slice()
                             .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-                            .slice(0, 20)
+                            .slice(0, 10)
                             .map((report) => {
                             const printer = activePrinters.find((p) => p.id === report.printerId);
                             return (
@@ -630,13 +646,10 @@ export default function Home() {
                 </CardContent>
                 </Card>
 
-                <div className="flex justify-center items-center space-x-4 my-6">
-                <Badge variant="outline" className="text-md">
-                    Versão: {info.version}
-                </Badge>
-                <Badge variant="outline" className="text-md">
-                    Autor: {info.author}
-                </Badge>
+                <div className="flex justify-center items-center space-x-4 my-6 text-sm text-muted-foreground">
+                    <span>Versão: {info.version}</span>
+                    <span>•</span>
+                    <span>Powered by {info.author}</span>
                 </div>
 
                 <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
@@ -646,23 +659,105 @@ export default function Home() {
                     <DialogDescription>Informações de acesso para esta máquina.</DialogDescription>
                     </DialogHeader>
                     <div className="grid gap-4 py-4">
-                    <div className="grid grid-cols-4 items-center gap-4">
-                        <span className="font-medium col-span-1">ID do Cliente:</span>
-                        <span className="col-span-3">{customerId}</span>
-                    </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                        <span className="font-medium col-span-1">Nome da Máquina:</span>
-                        <span className="col-span-3">{machine}</span>
-                    </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                        <span className="font-medium col-span-1">Chave de acesso:</span>
-                        <span className="col-span-3">{formatToken(accessToken)}</span>
-                    </div>
+                        <div className="grid grid-cols-4 items-center gap-4">
+                            <label htmlFor="client-id" className="font-medium col-span-1">ID do Cliente:</label>
+                            <input
+                                id="client-id"
+                                type="text"
+                                value={customerId}
+                                readOnly
+                                className="col-span-3 bg-gray-50 border border-gray-100 rounded px-2 py-1 select-none"
+                                onMouseDown={(e) => e.preventDefault()} // Prevents text selection
+                            />
+                        </div>
+                        <div className="grid grid-cols-4 items-center gap-4">
+                            <label htmlFor="machine-name" className="font-medium col-span-1">Nome da Máquina:</label>
+                            <div className="col-span-3 flex items-center gap-2">
+                                <input
+                                    id="machine-name"
+                                    type="text"
+                                    value={machine}
+                                    readOnly
+                                    className="flex-1 bg-gray-50 border border-gray-100 rounded px-2 py-1 select-none"
+                                    onMouseDown={(e) => e.preventDefault()} // Prevents text selection
+                                />
+                                <Button
+                                    onClick={() => {
+                                        navigator.clipboard.writeText(machine).then(() => {
+                                            setCopyMachineSuccess(true);
+                                            setTimeout(() => setCopyMachineSuccess(false), 3000);
+                                        });
+                                    }}
+                                    className="bg-primary hover:bg-primary/90 p-2"
+                                >
+                                    {copyMachineSuccess ? (
+                                        <TooltipProvider>
+                                            <Tooltip open={true}>
+                                                <TooltipTrigger>
+                                                    <ClipboardCheck className="h-4 w-4" />
+                                                </TooltipTrigger>
+                                                <TooltipContent>
+                                                    <p>Copiado!</p>
+                                                </TooltipContent>
+                                            </Tooltip>
+                                        </TooltipProvider>
+                                    ) : (
+                                        <Clipboard className="h-4 w-4" />
+                                    )}
+                                </Button>
+                            </div>
+                        </div>
+                        <div className="grid grid-cols-4 items-center gap-4">
+                            <label htmlFor="access-token" className="font-medium col-span-1">Chave de acesso:</label>
+                            <div className="col-span-3 flex items-center gap-2">
+                                <input
+                                    id="access-token"
+                                    type="text"
+                                    value={formatToken(accessToken)}
+                                    readOnly
+                                    className="flex-1 bg-gray-50 border border-gray-100 rounded px-2 py-1 select-none"
+                                    onMouseDown={(e) => e.preventDefault()} // Prevents text selection
+                                />
+                                <Button
+                                    onClick={() => {
+                                        navigator.clipboard.writeText(accessToken).then(() => {
+                                            setCopyAccessTokenSuccess(true);
+                                            setTimeout(() => setCopyAccessTokenSuccess(false), 3000);
+                                        });
+                                    }}
+                                    className="bg-primary hover:bg-primary/90 p-2"
+                                >
+                                    {copyAccessTokenSuccess ? (
+                                        <TooltipProvider>
+                                            <Tooltip open={true}>
+                                                <TooltipTrigger>
+                                                    <ClipboardCheck className="h-4 w-4" />
+                                                </TooltipTrigger>
+                                                <TooltipContent>
+                                                    <p>Copiado!</p>
+                                                </TooltipContent>
+                                            </Tooltip>
+                                        </TooltipProvider>
+                                    ) : (
+                                        <Clipboard className="h-4 w-4" />
+                                    )}
+                                </Button>
+                            </div>
+                        </div>
                     </div>
                     <DialogFooter className="flex flex-col sm:flex-row gap-2">
                     <Button onClick={handleCopyToClipboard} className="w-full sm:w-auto bg-primary hover:bg-primary/90 gap-2">
-                        <Clipboard className="h-4 w-4" />
-                        Copiar Dados
+                        {copySuccess ? (
+                            <>
+                                <ClipboardCheck className="h-4 w-4" />
+                                Dados copiados!
+                            </>
+                        ) : (
+                            <>
+                                <Clipboard className="h-4 w-4" />
+                                Copiar Dados
+                            </>
+                        )}
                     </Button>
                     <Button onClick={handleCloseModal} variant="outline" className="w-full sm:w-auto">
                         Fechar
