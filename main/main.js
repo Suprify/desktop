@@ -125,7 +125,7 @@ function createWindow() {
         mainWindow.hide();
     });
 
-    tray = new Tray(path.join(basePath, 'printer.png'));
+    tray = new Tray(path.join(basePath, 'orbit_tray.png'));
     const contextMenu = Menu.buildFromTemplate([
         { label: 'Configurações', icon: path.join(basePath, 'settings.png'), click: () => openWindow() },
         { type: 'separator' },

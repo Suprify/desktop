@@ -15,10 +15,10 @@ win:
   - "nsis" # Se você deseja criar um instalador para Windows
 #  - "portable" # Se você deseja uma versão portátil do aplicativo
 #  - "zip" # Se você deseja empacotar como ZIP
-  icon: "public/printer_icon.ico"
+  icon: "public/orbit_icon.ico"
 linux:
   target:
   - "AppImage" # Universal Linux package
   - "deb" # Debian package
-  icon: "public/printer_icon.png" # Ensure you have a PNG icon for Linux
+  icon: "public/orbit_icon.png" # Ensure you have a PNG icon for Linux
   category: "Utility" # Set the Linux category
