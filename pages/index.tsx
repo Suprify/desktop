@@ -28,6 +28,14 @@ interface Client {
     status: string;
 }
 
+interface Machine {
+    id: string;
+    customerId: string;
+    machineName: string;
+    token: string;
+    status: string;
+}
+
 interface Printers {
     id: string;
     customerId: string;
@@ -77,6 +85,7 @@ export default function Home() {
     const [isUpdating, setIsUpdating] = useState(false);
     const [info, setInfo] = useState({ version: '', author: '' });
     const [machine, setMachineName] = useState('');
+    const [machines, setMachines] = useState<Machine[]>([]);
     const [accessToken, setAccessToken] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [copySuccess, setCopySuccess] = useState(false);
@@ -104,6 +113,26 @@ export default function Home() {
     useEffect(() => {
         fetchAccessToken();
     }, [fetchAccessToken]);
+
+    const fetchMachines = useCallback(async () => {
+        if (!accessToken) {
+            return;
+        }
+        try {
+            const machinesResponse = await fetch(`${api_url}/api/machines?customerId=${customerId}`, {
+                method: 'GET',
+                headers: {
+                  'Authorization': `Bearer ${accessToken}`,
+                }
+            });
+
+            const machinesData = await machinesResponse.json();
+            setMachines(machinesData);
+            console.log('Machines:', machinesData);
+        } catch (error) {
+            console.error('Error fetching machines:', error);
+        }
+    }, [api_url, customerId, accessToken]);
 
     const fetchCustomer = useCallback(async () => {
         if (!accessToken) {
@@ -160,12 +189,10 @@ export default function Home() {
         }
 
         try {
-            const updatedSnmpCommands: SnmpCommands[] = [...snmpCommands];
+            const updatedSnmpCommands: SnmpCommands[] = [];
 
             for (const printer of activePrinters) {
                 try {
-                    console.log('printer:', printer);
-                    console.log('Chamando API para buscar comandos SNMP...');
                     const snmpCommandsResponse = await fetch(`${api_url}/api/snmpcommands?approvedPrinterId=${printer.approvedPrinterId}`, {
                         method: 'GET',
                         headers: {
@@ -193,7 +220,7 @@ export default function Home() {
         catch (error) {
             console.error('Error fetching approved printers:', error);
         }
-    }, [api_url, activePrinters, accessToken, snmpCommands]);
+    }, [api_url, activePrinters, accessToken]);
 
     const fetchReports = useCallback(async () => {
         if (!accessToken) {
@@ -254,38 +281,42 @@ export default function Home() {
             console.error('No active printers found.');
             return;
         }
-        await fetchSnmpCommands();
         for (const printer of activePrinters) {
-            for (const command of snmpCommands) {
-                try {
-                    const value = await fetchSnmpData(printer.ipAddress, command.oid, command.community);
-                    console.log('SNMP data:', value);
-                    if (value === undefined || value === null) {
-                        console.error(`Error fetching SNMP data for printer ${printer.id} and command ${command.commandName}`);
-                        continue;
+            for (const machine of machines || []) {
+                if (printer.machineId === machine.id && machine.status === 'ACTIVE') {
+                    for (const command of snmpCommands) {
+                        try {
+                            const value = await fetchSnmpData(printer.ipAddress, command.oid, command.community);
+                            console.log('SNMP data:', value);
+                            if (value === undefined || value === null) {
+                                console.error(`Error fetching SNMP data for printer ${printer.id} and command ${command.commandName}`);
+                                continue;
+                            }
+                            const reportData = {
+                                printerId: printer.id,
+                                createdAt: currentTime,
+                                commandName: command.commandName,
+                                value: value.toString()
+                            };
+                            console.log('reportData POST:', reportData);
+                            await postReportData(reportData);
+                        } catch (error) {
+                            console.error(`Error collecting data for printer ${printer.id}:`, error);
+                        }
                     }
-                    const reportData = {
-                        printerId: printer.id,
-                        createdAt: currentTime,
-                        commandName: command.commandName,
-                        value: value.toString()
-                    };
-                    console.log('reportData POST:', reportData);
-                    await postReportData(reportData);
-                } catch (error) {
-                    console.error(`Error collecting data for printer ${printer.id}:`, error);
                 }
             }
         }
-    }, [postReportData, activePrinters, snmpCommands, fetchSnmpCommands]);
+    }, [postReportData, activePrinters, snmpCommands, machines]);
 
     const loadData = useCallback(async () => {
         if (customerId) {
-          await fetchCustomer();
-          await fetchPrinters();
-          await fetchReports();
+            await fetchCustomer();
+            await fetchMachines();
+            await fetchPrinters();
+            await fetchReports();
         }
-    }, [customerId, fetchPrinters, fetchReports, fetchCustomer]);
+    }, [customerId, fetchPrinters, fetchReports, fetchCustomer, fetchMachines]);
 
     const executeReportCollectionIfNeeded = useCallback(async () => {
         const now = new Date();
@@ -348,6 +379,12 @@ export default function Home() {
     useEffect(() => {
         loadData();
       }, [loadData]);
+
+    useEffect(() => {
+        if (activePrinters.length > 0) {
+            fetchSnmpCommands();
+        }
+    }, [activePrinters, fetchSnmpCommands]);
     
     useEffect(() => {
         const interval = setInterval(() => {
