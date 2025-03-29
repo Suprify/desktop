@@ -116,6 +116,7 @@ function createWindow() {
         }
         
         const config = fs.readFileSync(configPath, 'utf-8');
+        console.log('Leitura do arquivo config.json', config);
         mainWindow.webContents.send('config-data', JSON.parse(config));
         mainWindow.webContents.send('app-info', { version: appVersion, author: appAuthor });
     });
@@ -167,10 +168,10 @@ ipcMain.handle('get-snmp-data', async (event, ip, oid, community) => {
 });
 
 ipcMain.on('save-settings', (event, data) => {
-    console.log('Dados recebidos no save-settings:', data);
+    console.log('Dados recebidos no save-settings:', JSON.stringify(data));
     fs.writeFileSync(configPath, JSON.stringify({ customerId: data.customerId }));
-    const response = { success: true }; // Example response
-    event.reply('settings-saved', response); // Send response
+    const response = { success: true };
+    event.reply('settings-saved', response);
 });
 
 ipcMain.handle('get-machine-name', async () => {

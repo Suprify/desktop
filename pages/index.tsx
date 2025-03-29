@@ -371,10 +371,14 @@ export default function Home() {
 
     useEffect(() => {
         if (typeof window !== "undefined" && window.electronAPI) {
-            window.electronAPI.on('config-data', (data: { customerId: string }) => {
-                const newClientId = String(data.customerId); // Converte para string de forma segura
-                setCustomerId(newClientId);
-                localStorage.setItem('customerId', newClientId);
+            window.electronAPI.on('config-data', (event, data) => {
+                if (data && typeof data.customerId === 'string') {
+                    const newClientId = data.customerId;
+                    setCustomerId(newClientId);
+                    localStorage.setItem('customerId', newClientId);
+                } else {
+                    console.error('Invalid config-data received:', data);
+                }
             });
     
             return () => {
