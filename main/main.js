@@ -111,7 +111,7 @@ function createWindow() {
         }
         
         if (!fs.existsSync(configPath)) {
-            const defaultConfig = { clientId: 0 };
+            const defaultConfig = { clientId: "" };
             fs.writeFileSync(configPath, JSON.stringify(defaultConfig, null, 2), 'utf-8');
         }
         
@@ -167,8 +167,10 @@ ipcMain.handle('get-snmp-data', async (event, ip, oid, community) => {
 });
 
 ipcMain.on('save-settings', (event, data) => {
-    fs.writeFileSync(configPath, JSON.stringify({ clientId: data.client_id }));
-    event.reply('settings-saved', { success: true });
+    console.log('Dados recebidos no save-settings:', data);
+    fs.writeFileSync(configPath, JSON.stringify({ customerId: data.customerId }));
+    const response = { success: true }; // Example response
+    event.reply('settings-saved', response); // Send response
 });
 
 ipcMain.handle('get-machine-name', async () => {

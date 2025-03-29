@@ -371,8 +371,8 @@ export default function Home() {
 
     useEffect(() => {
         if (typeof window !== "undefined" && window.electronAPI) {
-            window.electronAPI.on('config-data', (data: { client_id: { toString: () => any; }; }) => {
-                const newClientId = data.client_id.toString();
+            window.electronAPI.on('config-data', (data: { customerId: string }) => {
+                const newClientId = String(data.customerId); // Converte para string de forma segura
                 setCustomerId(newClientId);
                 localStorage.setItem('customerId', newClientId);
             });
@@ -405,7 +405,7 @@ export default function Home() {
 
     const handleSave = () => {
         localStorage.setItem('customerId', customerId);
-        window.electronAPI.send('save-settings', { client_id: customerId });
+        window.electronAPI.send('save-settings', { customerId: customerId });
         setSaveSuccess(true);
         toast.success("Configurações salvas", {
             description: "As configurações foram salvas com sucesso.",
@@ -439,8 +439,14 @@ export default function Home() {
     };   
 
     useEffect(() => {
-        window.electronAPI.on('settings-saved', (event: any, data: { success: boolean | ((prevState: boolean) => boolean); }) => {
-            setSaveSuccess(data.success);
+        window.electronAPI.on('settings-saved', (event, response) => {
+            console.log('Resposta recebida no settings-saved:', response);
+            if (response && response.success) {
+                setSaveSuccess(response.success);
+                console.log('Configurações salvas com sucesso!');
+            } else {
+                console.error('Erro ao salvar configurações ou resposta inválida.');
+            }
         });
 
         return () => {
@@ -498,11 +504,13 @@ export default function Home() {
 
                     <Card>
                         <CardHeader className="bg-primary text-white py-2 px-4 rounded-t-lg">
-                        <CardTitle className="text-sm text-center font-medium">Período de Execução (horas)</CardTitle>
+                        <CardTitle className="text-sm text-center font-medium">Período de Execução (h:mm)</CardTitle>
                         </CardHeader>
                         <CardContent className="p-4">
                         {customerSelected ? (
-                            <p className="text-center">{customerSelected.executionPeriod}</p>
+                            <p className="text-center">
+                                {Math.floor(customerSelected.executionPeriod)}:{String(Math.round((customerSelected.executionPeriod % 1) * 60)).padStart(2, '0')}
+                            </p>
                         ) : (
                             <p className="text-center text-muted-foreground">Nenhuma configuração encontrada.</p>
                         )}
