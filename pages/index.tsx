@@ -405,7 +405,7 @@ export default function Home() {
 
     const handleSave = () => {
         localStorage.setItem('customerId', customerId);
-        window.electronAPI.send('save-settings', { client_id: parseInt(customerId, 10) });
+        window.electronAPI.send('save-settings', { client_id: customerId });
         setSaveSuccess(true);
         toast.success("Configurações salvas", {
             description: "As configurações foram salvas com sucesso.",
