@@ -9,8 +9,10 @@ const { machineId } = require('node-machine-id');
 const crypto = require('crypto');
 
 const appDataPath = process.env.APPDATA || (process.platform == 'darwin' ? process.env.HOME + '/Library/Preferences' : '/var/local');
-const configPath = path.join(appDataPath, 'printers-data-manager', 'config.json');
-const logFilePath = path.join(appDataPath, 'printers-data-manager', 'app.log');
+const configPath = path.join(appDataPath, 'suprify-orbit', 'config.json');
+const logFilePath = path.join(appDataPath, 'suprify-orbit', 'app.log');
+
+const isDev = !app.isPackaged; // Verifica se está rodando em desenvolvimento
 
 async function getMachineUUID() {
     const uuid = await machineId();
@@ -61,9 +63,11 @@ console.error = (...args) => {
   logToFile(`Error: ${args.join(' ')}`); // Adiciona erro ao arquivo de log
 };  
 
-const appServe = app.isPackaged ? serve({
-    directory: path.join(__dirname, "../out")
-  }) : null;
+const basePath = isDev 
+    ? path.join(__dirname, "../out") 
+    : path.join(process.resourcesPath, "out");
+
+const appServe = isDev ? null : serve({ directory: basePath });
 
 let mainWindow;
 let tray;
@@ -80,17 +84,19 @@ function createWindow() {
 
     mainWindow.removeMenu();
 
-    if (app.isPackaged) {
-        appServe(mainWindow).then(() => {
-          mainWindow.loadURL("app://-");
-        });
-      } else {
-        mainWindow.loadURL("http://localhost:3000");
+    if (isDev) {
+        // Se estiver em desenvolvimento, abre o servidor local
+        mainWindow.loadURL("http://localhost:3333");
         mainWindow.webContents.openDevTools();
         mainWindow.webContents.on("did-fail-load", (e, code, desc) => {
-          mainWindow.webContents.reloadIgnoringCache();
+            mainWindow.webContents.reloadIgnoringCache();
         });
-      }
+    } else {
+        // Se estiver empacotado, carrega os arquivos estáticos corretamente
+        appServe(mainWindow).then(() => {
+            mainWindow.loadURL("app://-");
+        });
+    }
 
     const packageJsonPath = path.join(app.getAppPath(), 'package.json');
     const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
@@ -98,18 +104,19 @@ function createWindow() {
     const appAuthor = packageJson.author;
 
     mainWindow.webContents.on('did-finish-load', () => {
-        const configDirectory = path.join(appDataPath, 'printers-data-manager');
+        const configDirectory = path.join(appDataPath, 'suprify-orbit');
         
         if (!fs.existsSync(configDirectory)) {
             fs.mkdirSync(configDirectory, { recursive: true });
         }
         
         if (!fs.existsSync(configPath)) {
-            const defaultConfig = { clientId: 0 };
+            const defaultConfig = { clientId: "" };
             fs.writeFileSync(configPath, JSON.stringify(defaultConfig, null, 2), 'utf-8');
         }
         
         const config = fs.readFileSync(configPath, 'utf-8');
+        console.log('Leitura do arquivo config.json', config);
         mainWindow.webContents.send('config-data', JSON.parse(config));
         mainWindow.webContents.send('app-info', { version: appVersion, author: appAuthor });
     });
@@ -119,13 +126,13 @@ function createWindow() {
         mainWindow.hide();
     });
 
-    tray = new Tray(path.join(__dirname, '../public/printer.png'));
+    tray = new Tray(path.join(basePath, 'orbit_tray.png'));
     const contextMenu = Menu.buildFromTemplate([
-        { label: 'Configurações', icon: path.join(__dirname, '../public/settings.png'), click: () => openWindow() },
+        { label: 'Configurações', icon: path.join(basePath, 'settings.png'), click: () => openWindow() },
         { type: 'separator' },
-        { label: 'Fechar', icon: path.join(__dirname, '../public/close.png'), click: () => app.quit() }
+        { label: 'Fechar', icon: path.join(basePath, 'close.png'), click: () => app.quit() }
     ]);
-    tray.setToolTip('Printers Data Manager');
+    tray.setToolTip('Suprify Orbit');
     tray.setContextMenu(contextMenu);
 }
 
@@ -140,14 +147,15 @@ function getSnmpData(ip, oid, community) {
         session.get([oid], (error, varbinds) => {
             if (error) {
                 console.error(`Erro ao coletar dados SNMP para ${ip}: ${error}`);
-                resolve(0); // Retorna 0 em caso de erro
+                resolve(error.name); // Retorna apenas o nome do erro
             } else {
                 if (snmp.isVarbindError(varbinds[0])) {
                     console.error(`Erro Varbind para ${ip}: ${snmp.varbindError(varbinds[0])}`);
-                    resolve(0); // Retorna 0 em caso de erro Varbind
+                    resolve("Erro Varbind"); // Retorna uma string indicando erro Varbind
                 } else {
-                    const value = parseInt(varbinds[0].value.toString(), 10);
-                    resolve(isNaN(value) ? 0 : value); // Retorna 0 se o valor não for um número
+                    const value = varbinds[0].value.toString();
+                    console.log(`Valor SNMP para ${ip}: ${value}`);
+                    resolve(value); // Retorna o valor como string
                 }
             }
             session.close();
@@ -160,8 +168,10 @@ ipcMain.handle('get-snmp-data', async (event, ip, oid, community) => {
 });
 
 ipcMain.on('save-settings', (event, data) => {
-    fs.writeFileSync(configPath, JSON.stringify({ clientId: data.client_id }));
-    event.reply('settings-saved', { success: true });
+    console.log('Dados recebidos no save-settings:', JSON.stringify(data));
+    fs.writeFileSync(configPath, JSON.stringify({ customerId: data.customerId }));
+    const response = { success: true };
+    event.reply('settings-saved', response);
 });
 
 ipcMain.handle('get-machine-name', async () => {
@@ -179,7 +189,7 @@ app.on('ready', () => {
 app.on('before-quit', () => {
     if (os.platform() === 'win32') {
         // Encerra o processo pelo nome no Windows
-        exec('taskkill /IM "Printers Data Manager.exe" /F', (error, stdout, stderr) => {
+        exec('taskkill /IM "Suprify Orbit.exe" /F', (error, stdout, stderr) => {
             if (error) {
                 console.error(`Erro ao encerrar processo: ${error}`);
                 return;
@@ -189,7 +199,7 @@ app.on('before-quit', () => {
     } else {
         // Handle process termination for Linux and macOS if needed
         // For example, you can use `pkill` for Linux
-        exec('pkill -f "Printers Data Manager"', (error, stdout, stderr) => {
+        exec('pkill -f "Suprify Orbit"', (error, stdout, stderr) => {
             if (error) {
                 console.error(`Erro ao encerrar processo: ${error}`);
                 return;

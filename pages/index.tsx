@@ -1,58 +1,103 @@
 import Head from 'next/head';
 import { useCallback, useEffect, useState } from 'react';
 import Image from 'next/image';
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+  } from "@/components/ui/tooltip"
+import { Clipboard, ClipboardCheck, RefreshCw } from "lucide-react"
+import { toast } from "sonner"
+import { format } from "date-fns"
+import { ptBR } from "date-fns/locale"
 
 interface Client {
-    id: number;
-    client_id: number;
-    companyname: string;
+    id: string;
+    companyId: string;
+    name: string;
+    billingDay: number;
+    executionPeriod: number;
     status: string;
 }
-interface Setting {
-    id: number;
-    client_id: number;
-    billing_day: string;
-    execution_period: number;
+
+interface Machine {
+    id: string;
+    customerId: string;
+    machineName: string;
+    token: string;
+    status: string;
 }
 
 interface Printers {
-    id: number;
-    client_id: number;
-    printer_ip: number;
-    printer_name: string;
-    printer_brand_model: string;
-    printer_tonner_type: string;
-    snmp_oid_community: string;
-    snmp_oid_copy_count: string;
-    snmp_oid_toner_level: string;
+    id: string;
+    customerId: string;
+    ipAddress: string;
+    serialNumber: string;
+    model: string;
+    networkName: string;
+    printerType: string;
     status: string;
+    mode: string;
+    supplyType: string;
+    machineId: string;
+    approvedPrinterId: string;
+}
+
+interface SnmpCommands {
+    id: string;
+    approvedPrinterId: string;
+    commandName: string;
+    oid: string;
+    community: string;
 }
 
 interface Reports {
-    id: number;
-    client_id: number;
-    printer_id: number;
-    date_time: string;
-    current_copy_count: number;
-    current_toner_level: string;
+    id: string;
+    printerId: string;
+    createdAt: string;
+    commandName: string;
+    value: string;
+    ipAddress: string,
+    serialNumber: string,
+    model: string,
+    networkName: string,
+    printerType: string,
+    status: string
 }
 
 export default function Home() {
-    const [settingsData, setSettingsData] = useState<Setting | null>(null);
-    const [clientId, setClientId] = useState('');
+    const [customerId, setCustomerId] = useState('');
     const [saveSuccess, setSaveSuccess] = useState(false);
     const [printers, setPrinters] = useState<Printers[]>([]);
     const [activePrinters, setActivePrinters] = useState<Printers[]>([]);
+    const [snmpCommands, setSnmpCommands] = useState<SnmpCommands[]>([]);
     const [reports, setReports] = useState<Reports[]>([]);
-    const [clientSelected, setSelectedClient] = useState<Client | null>(null);
+    const [customerSelected, setCustomerSelected] = useState<Client | null>(null);
     const [isClientActive, setIsClientActive] = useState(true);
     const [isUpdating, setIsUpdating] = useState(false);
     const [info, setInfo] = useState({ version: '', author: '' });
-    const [machine, setMachineName] = useState('');
+    const [machineName, setMachineName] = useState('');
+    const [machine, setMachine] = useState<Machine | null>(null);
     const [accessToken, setAccessToken] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [copySuccess, setCopySuccess] = useState(false);
+    const [copyMachineSuccess, setCopyMachineSuccess] = useState(false);
+    const [copyAccessTokenSuccess, setCopyAccessTokenSuccess] = useState(false);
 
+    const api_url = process.env.NEXT_PUBLIC_API_URL;
 
     const handleOpenModal = async () => {
         /* if (printers.length > 0 && isClientActive) { */
@@ -76,33 +121,53 @@ export default function Home() {
         fetchAccessToken();
     }, [fetchAccessToken]);
 
-    const fetchSettings = useCallback(async () => {
+    const fetchMachines = useCallback(async () => {
+        if (!accessToken) {
+            return;
+        }
+        try {
+            const machinesResponse = await fetch(`${api_url}/api/machines?customerId=${customerId}`, {
+                method: 'GET',
+                headers: {
+                  'Authorization': `Bearer ${accessToken}`,
+                }
+            });
+
+            const machinesData = await machinesResponse.json();
+            const activeMachineData = await machinesData.find(
+                (machineData: { status: string; token: string; }) => 
+                    machineData.status === 'ACTIVE' && 
+                    machineData.token === accessToken
+                );
+            setMachine(activeMachineData);
+            console.log('Machine:', activeMachineData);
+        } catch (error) {
+            console.error('Error fetching machine:', error);
+        }
+    }, [api_url, customerId, accessToken]);
+
+    useEffect(() => {
+        fetchMachines();
+    }, [fetchMachines]);
+
+    const fetchCustomer = useCallback(async () => {
         if (!accessToken) {
             return; 
         }
         
         try {
-            const clientResponse = await fetch(`https://pdm.ingatec.com.br/api/clients/client_id/${clientId}`, {
+            const clientResponse = await fetch(`${api_url}/api/customers/${customerId}`, {
                 method: 'GET',
                 headers: {
                   'Authorization': `Bearer ${accessToken}`,
-                  'Client-Id': clientId
                 }
             });
-            const [client] = await clientResponse.json();
-            setSelectedClient(client);
+            const client = await clientResponse.json();
+
+            console.log('Client:', client);
+            setCustomerSelected(client);      
     
-            const settingResponse = await fetch(`https://pdm.ingatec.com.br/api/settings/client_id/${clientId}`, {
-                method: 'GET',
-                headers: {
-                  'Authorization': `Bearer ${accessToken}`,
-                  'Client-Id': clientId
-                }
-            });
-            const [setting] = await settingResponse.json();
-            setSettingsData(setting);          
-    
-            if (client && client.status == 'Ativo') {
+            if (client && client.status == 'ACTIVE') {
                 setIsClientActive(true);
             } else {
                 setIsClientActive(false);
@@ -110,29 +175,73 @@ export default function Home() {
         } catch (error) {
             console.error('Error fetching data:', error);
         }
-    }, [clientId, accessToken]);
+    }, [api_url, customerId, accessToken]);
 
     const fetchPrinters = useCallback(async () => {
-        if (!accessToken) {
+        if (!accessToken || !machine) {
             return; 
         }
         
         try {
-            const printersResponse = await fetch(`https://pdm.ingatec.com.br/api/printers/client_id/${clientId}`, {
+            const printersResponse = await fetch(`${api_url}/api/printers/${customerId}`, {
                 method: 'GET',
                 headers: {
                   'Authorization': `Bearer ${accessToken}`,
-                  'Client-Id': clientId
                 }
             });
             const printersData = await printersResponse.json();
             setPrinters(printersData);
-            const activePrinters = printersData.filter((printer: { status: string; }) => printer.status === 'Ativa');
-            setActivePrinters(activePrinters);
+            const activePrintersData = await printersData.filter(
+                (printer: { status: string; mode: string; machineId: string; }) => 
+                    printer.status === 'ACTIVE' && 
+                    printer.mode === 'AUTO' && 
+                    printer.machineId === machine.id
+                );
+            setActivePrinters(activePrintersData);
+            console.log('activePrintersData:', activePrintersData);
         } catch (error) {
             console.error('Error fetching printers:', error);
         }
-    }, [clientId, accessToken]);    
+    }, [api_url, customerId, accessToken, machine]);
+
+    const fetchSnmpCommands = useCallback(async () => {
+        if (!accessToken) {
+            return; 
+        }
+
+        try {
+            const updatedSnmpCommands: SnmpCommands[] = [];
+
+            for (const printer of activePrinters) {
+                try {
+                    const snmpCommandsResponse = await fetch(`${api_url}/api/snmpcommands?approvedPrinterId=${printer.approvedPrinterId}`, {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': `Bearer ${accessToken}`,
+                        }
+                    });
+
+                    const snmpCommandsData: SnmpCommands[] = await snmpCommandsResponse.json();
+
+                    snmpCommandsData.forEach((command) => {
+                        const exists = updatedSnmpCommands.some((existingCommand) => existingCommand.id === command.id);
+                        if (!exists) {
+                            updatedSnmpCommands.push(command);
+                        }
+                    });
+                } catch (error) {
+                    console.error(`Error fetching SNMP commands for printer ${printer.id}:`, error);
+                }
+            }
+
+            setSnmpCommands(updatedSnmpCommands);
+
+            console.log('snmpCommands:', updatedSnmpCommands);
+        }
+        catch (error) {
+            console.error('Error fetching approved printers:', error);
+        }
+    }, [api_url, activePrinters, accessToken]);
 
     const fetchReports = useCallback(async () => {
         if (!accessToken) {
@@ -140,32 +249,31 @@ export default function Home() {
         }
         
         try {
-            const reportsResponse = await fetch(`https://pdm.ingatec.com.br/api/reports/client_id/${clientId}`, {
+            const reportsResponse = await fetch(`${api_url}/api/reports?customerId=${customerId}`, {
                 method: 'GET',
                 headers: {
                   'Authorization': `Bearer ${accessToken}`,
-                  'Client-Id': clientId
                 }
             });
             const reportsData = await reportsResponse.json();
             setReports(reportsData);
+            console.log('reports:', reportsData);
         } catch (error) {
             console.error('Error fetching reports:', error);
         }
-      }, [clientId, accessToken]);
+      }, [api_url, customerId, accessToken]);
 
-    const postReportData = useCallback(async (reportData: { client_id: number; printer_id: number; date_time: string; current_copy_count: number; current_toner_level: string; }) => {
+    const postReportData = useCallback(async (reportData: { printerId: string; createdAt: string; commandName: string; value: string; }) => {
         if (!accessToken) {
             return; 
         }
         
         try {
-            const response = await fetch('https://pdm.ingatec.com.br/api/reports', {
+            const response = await fetch(`${api_url}/api/reports`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${accessToken}`,
-                    'Client-Id': clientId
                 },
                 body: JSON.stringify(reportData)
             });
@@ -176,16 +284,12 @@ export default function Home() {
         } catch (error) {
             console.error('Error posting report data:', error);
         }
-    }, [fetchReports, accessToken, clientId]);
+    }, [api_url, fetchReports, accessToken]);
 
-    async function fetchSnmpData(ip: number, oid: string, community: string) {
+    async function fetchSnmpData(ip: string, oid: string, community: string) {
         try {
             const result = await window.electronAPI.getSnmpData(ip, oid, community);
-            if (typeof result === 'number') {
-                return result;
-            } else {
-                throw new Error('The returned value is not a number.');
-            }
+            return result;
         } catch (error) {
             console.error('Error fetching SNMP data:', error);
             throw error;
@@ -193,42 +297,56 @@ export default function Home() {
     }
 
     const collectPrinterDataAndReport = useCallback(async () => {
-        const currentTime = new Date().toLocaleString('sv', { timeZone: 'America/Sao_Paulo' }).replace(' ', 'T');
-        
-        for (const printer of activePrinters) {
-            try {
-                const copyCount = await fetchSnmpData(printer.printer_ip, printer.snmp_oid_copy_count, printer.snmp_oid_community);
-                const tonerLevel = await fetchSnmpData(printer.printer_ip, printer.snmp_oid_toner_level, printer.snmp_oid_community);
+        const currentTime = new Date().toISOString();
+        if (activePrinters.length === 0) {
+            console.error('No active printers found.');
+            return;
+        }
 
-                const reportData = {
-                    client_id: printer.client_id,
-                    printer_id: printer.id,
-                    date_time: currentTime,
-                    current_copy_count: copyCount,
-                    current_toner_level: tonerLevel.toString()
-                };
-                
-                await postReportData(reportData);
-            } catch (error) {
-                console.error(`Error collecting data for printer ${printer.id}:`, error);
+        if (!machine || !accessToken) {
+            return;
+        }
+
+        for (const printer of activePrinters) {
+            if (printer.machineId === machine.id && machine.status === 'ACTIVE' && machine.token === accessToken) {
+                for (const command of snmpCommands) {
+                    try {
+                        const value = await fetchSnmpData(printer.ipAddress, command.oid, command.community);
+                        console.log('SNMP data:', value);
+                        if (value === undefined || value === null) {
+                            console.error(`Error fetching SNMP data for printer ${printer.id} and command ${command.commandName}`);
+                            continue;
+                        }
+                        const reportData = {
+                            printerId: printer.id,
+                            createdAt: currentTime,
+                            commandName: command.commandName,
+                            value: value.toString()
+                        };
+                        console.log('reportData POST:', reportData);
+                        await postReportData(reportData);
+                    } catch (error) {
+                        console.error(`Error collecting data for printer ${printer.id}:`, error);
+                    }
+                }
             }
         }
-    }, [postReportData, activePrinters]);
+    }, [postReportData, activePrinters, snmpCommands, machine, accessToken]);
 
     const loadData = useCallback(async () => {
-        if (clientId) {
-          await fetchSettings();
-          await fetchPrinters();
-          await fetchReports();
+        if (customerId) {
+            await fetchCustomer();
+            await fetchPrinters();
+            await fetchReports();
         }
-    }, [clientId, fetchPrinters, fetchReports, fetchSettings]);
+    }, [customerId, fetchCustomer, fetchPrinters, fetchReports]);
 
     const executeReportCollectionIfNeeded = useCallback(async () => {
         const now = new Date();
         const lastReportTime = new Date(localStorage.getItem('lastReportTime') || 0);
     
-        if (settingsData) {
-            const nextExecutionTime = new Date(lastReportTime.getTime() + settingsData.execution_period * 60 * 60 * 1000);
+        if (customerSelected) {
+            const nextExecutionTime = new Date(lastReportTime.getTime() + customerSelected.executionPeriod * 60 * 60 * 1000);
     
             if (now >= nextExecutionTime) {
                 await loadData();
@@ -238,35 +356,45 @@ export default function Home() {
         } else {
             console.error('Execution settings not found for this client.');
         }
-    }, [settingsData, collectPrinterDataAndReport, loadData]);
+    }, [customerSelected, collectPrinterDataAndReport, loadData]);
 
     const handleForceUpdate = useCallback(async () => {
         setIsUpdating(true);
         const now = new Date();
-        const lastReportTime = new Date(localStorage.getItem('lastReportTime') || 0);
     
         try {
             await loadData();
             await collectPrinterDataAndReport();
             localStorage.setItem('lastReportTime', now.toISOString());
+            toast.success("Atualização concluída", {
+                description: "Os dados das impressoras foram atualizados com sucesso.",
+            });
+        } catch (error) {
+            toast.error("Erro na atualização", {
+                description: "Ocorreu um erro ao atualizar os dados.",
+            });
         } finally {
             setIsUpdating(false);
         }
     }, [collectPrinterDataAndReport, loadData]);
     
     useEffect(() => {
-        const storedClientId = localStorage.getItem('clientId');
+        const storedClientId = localStorage.getItem('customerId');
         if (storedClientId) {
-            setClientId(storedClientId);
+            setCustomerId(storedClientId);
         }
     }, []);
 
     useEffect(() => {
         if (typeof window !== "undefined" && window.electronAPI) {
-            window.electronAPI.on('config-data', (data: { client_id: { toString: () => any; }; }) => {
-                const newClientId = data.client_id.toString();
-                setClientId(newClientId);
-                localStorage.setItem('clientId', newClientId);
+            window.electronAPI.on('config-data', (event, data) => {
+                if (data && typeof data.customerId === 'string') {
+                    const newClientId = data.customerId;
+                    setCustomerId(newClientId);
+                    localStorage.setItem('customerId', newClientId);
+                } else {
+                    console.error('Invalid config-data received:', data);
+                }
             });
     
             return () => {
@@ -278,6 +406,12 @@ export default function Home() {
     useEffect(() => {
         loadData();
       }, [loadData]);
+
+    useEffect(() => {
+        if (activePrinters.length > 0) {
+            fetchSnmpCommands();
+        }
+    }, [activePrinters, fetchSnmpCommands]);
     
     useEffect(() => {
         const interval = setInterval(() => {
@@ -290,22 +424,30 @@ export default function Home() {
     }, [loadData, isClientActive, executeReportCollectionIfNeeded]);
 
     const handleSave = () => {
-        localStorage.setItem('clientId', clientId);
-        window.electronAPI.send('save-settings', { client_id: parseInt(clientId, 10) });
+        localStorage.setItem('customerId', customerId);
+        window.electronAPI.send('save-settings', { customerId: customerId });
         setSaveSuccess(true);
+        toast.success("Configurações salvas", {
+            description: "As configurações foram salvas com sucesso.",
+        });
         setTimeout(() => setSaveSuccess(false), 3000);
     };
 
     const handleCloseModal = () => setIsModalOpen(false);
 
     const handleCopyToClipboard = () => {
-        const textToCopy = `ID do Cliente: ${clientId}\nNome da Máquina: ${machine}\nChave de acesso: ${accessToken}`;
+        const textToCopy = `ID do Cliente: ${customerId}\nNome da Máquina: ${machineName}\nChave de acesso: ${accessToken}`;
         navigator.clipboard.writeText(textToCopy).then(() => {
             setCopySuccess(true);
+            toast.success("Copiado!", {
+                description: "Dados copiados para a área de transferência.",
+            });
             setTimeout(() => setCopySuccess(false), 3000); // A mensagem desaparecerá após 3 segundos
         }, (err) => {
-            console.error('Erro ao copiar: ', err);
             setCopySuccess(false);
+            toast.error("Erro ao copiar", {
+                description: "Não foi possível copiar os dados.",
+            });
         });
     };
 
@@ -317,8 +459,14 @@ export default function Home() {
     };   
 
     useEffect(() => {
-        window.electronAPI.on('settings-saved', (event: any, data: { success: boolean | ((prevState: boolean) => boolean); }) => {
-            setSaveSuccess(data.success);
+        window.electronAPI.on('settings-saved', (event, response) => {
+            console.log('Resposta recebida no settings-saved:', response);
+            if (response && response.success) {
+                setSaveSuccess(response.success);
+                console.log('Configurações salvas com sucesso!');
+            } else {
+                console.error('Erro ao salvar configurações ou resposta inválida.');
+            }
         });
 
         return () => {
@@ -335,210 +483,315 @@ export default function Home() {
     return (
         <>
             <Head>
-                <title>Ingatec - Gerenciador de Dados de Impressoras</title>
+                <title>Suprify | Orbit - Gerenciador de Impressoras</title>
             </Head>
-            <div className="max-w-4xl mx-auto px-2 py-2">
-                <div className="mb-0 flex items-center">
-                    {/* Logo da Ingatec */}
+            <div className="max-w-4xl mx-auto p-4">
+                <div className="mb-4 flex items-center">
+                    {/* Logo da Suprify Orbit */}
                     <div className="logo">
                         <Image
-                            src="/logo_ingatec.png" // O caminho é relativo à pasta public
-                            alt="Logo Ingatec"
-                            width={200} // Defina a largura conforme necessário
-                            height={60} // Defina a altura conforme necessário
+                            src="/suprify_orbit_logo.png"
+                            alt="Logo Suprify Orbit"
+                            width={200}
+                            height={60}
                         />
                     </div>
                 </div>
-            </div>
-            <div className="max-w-4xl mx-auto px-2 py-2">
-                <div className="flex justify-between items-center mb-4">
-                    <h1 className="text-2xl font-semibold mb-6">Configurações</h1>
-                    <button 
-                        onClick={handleOpenModal} 
-                        /* disabled={printers.length === 0 || !isClientActive}  */
-                        className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 disabled:bg-gray-400"
+
+                <Card className="mb-6">
+                <CardHeader className="pb-3">
+                    <div className="flex justify-between items-center">
+                    <CardTitle>Configurações</CardTitle>
+                    <Button onClick={handleOpenModal} variant="outline">
+                        Chave de acesso
+                    </Button>
+                    </div>
+                </CardHeader>
+                <CardContent>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <Card>
+                        <CardHeader className="bg-primary text-white py-2 px-4 rounded-t-lg">
+                        <CardTitle className="text-sm text-center font-medium">Cliente</CardTitle>
+                        </CardHeader>
+                        <CardContent className="p-4">
+                        {customerSelected ? (
+                            <p className="text-center">{customerSelected.name}</p>
+                        ) : (
+                            <p className="text-center text-muted-foreground">Nenhum cliente encontrado.</p>
+                        )}
+                        </CardContent>
+                    </Card>
+
+                    <Card>
+                        <CardHeader className="bg-primary text-white py-2 px-4 rounded-t-lg">
+                        <CardTitle className="text-sm text-center font-medium">Período de Execução (h:mm)</CardTitle>
+                        </CardHeader>
+                        <CardContent className="p-4">
+                        {customerSelected ? (
+                            <p className="text-center">
+                                {Math.floor(customerSelected.executionPeriod)}:{String(Math.round((customerSelected.executionPeriod % 1) * 60)).padStart(2, '0')}
+                            </p>
+                        ) : (
+                            <p className="text-center text-muted-foreground">Nenhuma configuração encontrada.</p>
+                        )}
+                        </CardContent>
+                    </Card>
+
+                    <Card>
+                        <CardHeader className="bg-primary text-white py-2 px-4 rounded-t-lg">
+                        <CardTitle className="text-sm text-center font-medium">ID do Cliente</CardTitle>
+                        </CardHeader>
+                        <CardContent className="p-4">
+                        <div className="flex items-center gap-2">
+                            <Input
+                            type="text"
+                            id="client-id"
+                            value={customerId}
+                            onChange={(e) => setCustomerId(e.target.value)}
+                            className="flex-1"
+                            />
+                            <Button onClick={handleSave} className="bg-primary hover:bg-primary/90">
+                            Salvar
+                            </Button>
+                        </div>
+                        {saveSuccess && <p className="mt-2 text-primary text-sm">Configurações salvas com sucesso!</p>}
+                        </CardContent>
+                    </Card>
+                    </div>
+                </CardContent>
+                </Card>
+
+                <Card className="mb-6">
+                <CardHeader className="pb-3">
+                    <CardTitle className="mb-2">Impressoras cadastradas</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <Table className="rounded-lg overflow-hidden">
+                    <TableHeader className="bg-primary text-white">
+                        <TableRow>
+                        <TableHead className="text-white text-center">IP</TableHead>
+                        <TableHead className="text-white text-center">Número de Série</TableHead>
+                        <TableHead className="text-white text-center">Modelo</TableHead>
+                        <TableHead className="text-white text-center">Nome na Rede</TableHead>
+                        <TableHead className="text-white text-center">Suprimento</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody className="border border-gray-100 shadow-lg rounded-lg">
+                        {activePrinters.length > 0 && isClientActive ? (
+                        activePrinters.map((printer) => (
+                            <TableRow key={printer.id}>
+                            <TableCell className="text-center">{printer.ipAddress}</TableCell>
+                            <TableCell className="text-center">{printer.serialNumber}</TableCell>
+                            <TableCell className="text-center">{printer.model}</TableCell>
+                            <TableCell className="text-center">{printer.networkName}</TableCell>
+                            <TableCell className="text-center">{printer.supplyType}</TableCell>
+                            </TableRow>
+                        ))
+                        ) : (
+                        <TableRow>
+                            <TableCell colSpan={4} className="text-center">
+                            Nenhuma impressora encontrada para o cliente ou cliente está inativo.
+                            </TableCell>
+                        </TableRow>
+                        )}
+                    </TableBody>
+                    </Table>
+                </CardContent>
+                </Card>
+
+                <Card>
+                <CardHeader className="pb-3">
+                    <div className="flex justify-between items-center">
+                    <CardTitle>Últimos dados das impressoras</CardTitle>
+                    <Button
+                        onClick={() => {
+                        if (printers.length > 0 && isClientActive) {
+                            handleForceUpdate()
+                        }
+                        }}
+                        disabled={isUpdating || printers.length === 0 || !isClientActive}
+                        variant="outline"
+                        className="gap-2"
                     >
-                        {'Chave de acesso'}
-                    </button>
+                        {isUpdating ? (
+                        <>
+                            <RefreshCw className="h-4 w-4 animate-spin" />
+                            Atualizando...
+                        </>
+                        ) : (
+                        <>
+                            <RefreshCw className="h-4 w-4" />
+                            Forçar atualização
+                        </>
+                        )}
+                    </Button>
+                    </div>
+                </CardHeader>
+                <CardContent>
+                    <Table className="rounded-lg overflow-hidden">
+                    <TableHeader className="bg-primary text-white">
+                        <TableRow>
+                        <TableHead className="text-white text-center">Data e Hora</TableHead>
+                        <TableHead className="text-white text-center">Número de Série</TableHead>
+                        <TableHead className="text-white text-center">Modelo</TableHead>
+                        <TableHead className="text-white text-center">Nome na Rede</TableHead>
+                        <TableHead className="text-white text-center">Nome do Comando</TableHead>
+                        <TableHead className="text-white text-center">Valor</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody className="border border-gray-100 shadow-lg rounded-lg">
+                        {reports.length > 0 && activePrinters.length > 0 && isClientActive ? (
+                        reports
+                            .filter((report) => activePrinters.some((printer) => printer.id === report.printerId))
+                            .slice()
+                            .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+                            .slice(0, 10)
+                            .map((report) => {
+                            const printer = activePrinters.find((p) => p.id === report.printerId);
+                            return (
+                                <TableRow key={report.id}>
+                                <TableCell className="text-center">
+                                    {format(new Date(report.createdAt), 'dd/MM/yyyy HH:mm:ss', { locale: ptBR })}
+                                </TableCell>
+                                <TableCell className="text-center">{report.serialNumber}</TableCell>
+                                <TableCell className="text-center">{report.model}</TableCell>
+                                <TableCell className="text-center">{report.networkName}</TableCell>
+                                <TableCell className="text-center">{report.commandName}</TableCell>
+                                <TableCell className="text-center">{report.value}</TableCell>
+                                </TableRow>
+                            );
+                            })
+                        ) : (
+                        <TableRow>
+                            <TableCell colSpan={4} className="text-center">
+                            Nenhum relatório encontrado para o cliente ou cliente está inativo.
+                            </TableCell>
+                        </TableRow>
+                        )}
+                    </TableBody>
+                    </Table>
+                </CardContent>
+                </Card>
+
+                <div className="flex justify-center items-center space-x-4 my-6 text-sm text-muted-foreground">
+                    <span>Versão: {info.version}</span>
+                    <span>•</span>
+                    <span>Powered by {info.author}</span>
                 </div>
-                {isModalOpen && (
-                    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full">
-                        <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
-                            <div className="mt-3 text-center">
-                                <h3 className="text-lg leading-6 font-medium text-gray-900">Dados da Máquina</h3>
-                                <div className="mt-2 px-7 py-3 text-left">
-                                    <p><strong>ID do Cliente:</strong> {clientId}</p>
-                                    <p><strong>Nome da Máquina:</strong> {machine}</p>
-                                    <p><strong>Chave de acesso:</strong> {formatToken(accessToken)}</p>
-                                </div>
-                                <div className="items-center px-4 py-3">
-                                    <button onClick={handleCopyToClipboard} className="px-4 py-2 bg-green-500 text-white text-base font-medium rounded-md w-full shadow-sm hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-300">
-                                        Copiar Dados
-                                    </button>
-                                    {copySuccess && <p className="text-sm text-green-600 mt-2">Dados copiados com sucesso!</p>}
-                                </div>
-                                <div className="items-center px-4 py-3">
-                                    <button onClick={handleCloseModal} className="px-4 py-2 bg-gray-500 text-white text-base font-medium rounded-md w-full shadow-sm hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-300">
-                                        Fechar
-                                    </button>
-                                </div>
+
+                <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                    <DialogTitle>Dados da Máquina</DialogTitle>
+                    <DialogDescription>Informações de acesso para esta máquina.</DialogDescription>
+                    </DialogHeader>
+                    <div className="grid gap-4 py-4">
+                        <div className="grid grid-cols-4 items-center gap-4">
+                            <label htmlFor="client-id" className="font-medium col-span-1">ID do Cliente:</label>
+                            <input
+                                id="client-id"
+                                type="text"
+                                value={customerId}
+                                readOnly
+                                className="col-span-3 bg-gray-50 border border-gray-100 rounded px-2 py-1 select-none"
+                                onMouseDown={(e) => e.preventDefault()} // Prevents text selection
+                            />
+                        </div>
+                        <div className="grid grid-cols-4 items-center gap-4">
+                            <label htmlFor="machine-name" className="font-medium col-span-1">Nome da Máquina:</label>
+                            <div className="col-span-3 flex items-center gap-2">
+                                <input
+                                    id="machine-name"
+                                    type="text"
+                                    value={machineName}
+                                    readOnly
+                                    className="flex-1 bg-gray-50 border border-gray-100 rounded px-2 py-1 select-none"
+                                    onMouseDown={(e) => e.preventDefault()} // Prevents text selection
+                                />
+                                <Button
+                                    onClick={() => {
+                                        navigator.clipboard.writeText(machineName).then(() => {
+                                            setCopyMachineSuccess(true);
+                                            setTimeout(() => setCopyMachineSuccess(false), 3000);
+                                        });
+                                    }}
+                                    className="bg-primary hover:bg-primary/90 p-2"
+                                >
+                                    {copyMachineSuccess ? (
+                                        <TooltipProvider>
+                                            <Tooltip open={true}>
+                                                <TooltipTrigger>
+                                                    <ClipboardCheck className="h-4 w-4" />
+                                                </TooltipTrigger>
+                                                <TooltipContent>
+                                                    <p>Copiado!</p>
+                                                </TooltipContent>
+                                            </Tooltip>
+                                        </TooltipProvider>
+                                    ) : (
+                                        <Clipboard className="h-4 w-4" />
+                                    )}
+                                </Button>
+                            </div>
+                        </div>
+                        <div className="grid grid-cols-4 items-center gap-4">
+                            <label htmlFor="access-token" className="font-medium col-span-1">Chave de acesso:</label>
+                            <div className="col-span-3 flex items-center gap-2">
+                                <input
+                                    id="access-token"
+                                    type="text"
+                                    value={formatToken(accessToken)}
+                                    readOnly
+                                    className="flex-1 bg-gray-50 border border-gray-100 rounded px-2 py-1 select-none"
+                                    onMouseDown={(e) => e.preventDefault()} // Prevents text selection
+                                />
+                                <Button
+                                    onClick={() => {
+                                        navigator.clipboard.writeText(accessToken).then(() => {
+                                            setCopyAccessTokenSuccess(true);
+                                            setTimeout(() => setCopyAccessTokenSuccess(false), 3000);
+                                        });
+                                    }}
+                                    className="bg-primary hover:bg-primary/90 p-2"
+                                >
+                                    {copyAccessTokenSuccess ? (
+                                        <TooltipProvider>
+                                            <Tooltip open={true}>
+                                                <TooltipTrigger>
+                                                    <ClipboardCheck className="h-4 w-4" />
+                                                </TooltipTrigger>
+                                                <TooltipContent>
+                                                    <p>Copiado!</p>
+                                                </TooltipContent>
+                                            </Tooltip>
+                                        </TooltipProvider>
+                                    ) : (
+                                        <Clipboard className="h-4 w-4" />
+                                    )}
+                                </Button>
                             </div>
                         </div>
                     </div>
-                )}
-                <div className="flex flex-wrap -mx-3">
-                    <div className="mb-8 px-3 w-full lg:w-1/3">
-                        {/* <h2 className="text-xl font-semibold mb-3">Cliente:</h2> */}
-                        <table className="table-auto w-full bg-white shadow-md rounded">
-                            <thead className="bg-green-600 text-white">
-                                <tr>
-                                    <th className="px-4 py-2">Cliente</th>
-                                </tr>
-                            </thead>
-                            <tbody className="text-gray-700">
-                                {clientSelected ? (
-                                    <tr key={clientSelected.id}>
-                                        <td className="px-4 py-2 text-center">{clientSelected.companyname}</td>
-                                    </tr>
-                                ) : (
-                                    <tr>
-                                        <td className="px-4 py-2 text-center">Nenhum cliente encontrado.</td>
-                                    </tr>
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
-                    <div className="mb-8 px-3 w-full lg:w-1/3">
-                        {/* <h2 className="text-xl font-semibold mb-3">Periodicidade de aquisição de dados:</h2> */}
-                        <table className="table-auto w-full bg-white shadow-md rounded">
-                            <thead className="bg-green-600 text-white">
-                                <tr>
-                                    <th className="px-4 py-2">Período de Execução (horas)</th>
-                                </tr>
-                            </thead>
-                            <tbody className="text-gray-700">
-                                {settingsData ? (
-                                    <tr key={settingsData.id} className="border-b">
-                                        <td className="px-4 py-2 text-center">{settingsData.execution_period}</td>
-                                    </tr>
-                                ) : (
-                                    <tr>
-                                        <td className="px-4 py-2 text-center">Nenhuma configuração encontrada.</td>
-                                    </tr>
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
-                    <div className="mb-4 px-3 w-full lg:w-1/3">
-                        <table className="table-auto w-full bg-white shadow-md rounded">
-                            <thead className="bg-green-600 text-white">
-                                <tr>
-                                    <th className="px-4 py-2">ID do Cliente</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr>
-                                    <td className="px-4 py-2">
-                                        <div className="flex items-center space-x-3">
-                                            <input
-                                                type="text"
-                                                id="client-id"
-                                                value={clientId}
-                                                onChange={(e) => setClientId(e.target.value)}
-                                                className="flex-1 px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-green-600 focus:border-green-600 w-1/2"
-                                            />
-                                            <button 
-                                                onClick={handleSave} 
-                                                className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-600 focus:ring-opacity-50 w-1/2"
-                                            >
-                                                Salvar
-                                            </button>
-                                        </div>
-                                        {saveSuccess && <p className="mt-2 text-green-600">Configurações salvas com sucesso!</p>}
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-                <div className="mb-6">
-                    <h2 className="text-xl font-semibold mb-4">Impressoras cadastradas:</h2>
-                    <table className="min-w-full divide-y divide-gray-200 shadow-md rounded">
-                        <thead className="bg-green-600 text-white">
-                            <tr>
-                                <th className="px-4 py-2">IP</th>
-                                <th className="px-4 py-2">Nome</th>
-                                <th className="px-4 py-2">Modelo</th>
-                                <th className="px-4 py-2">Toner</th>
-                            </tr>
-                        </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
-                            {activePrinters.length > 0 && isClientActive ? (
-                                activePrinters.map((printer) => (
-                                    <tr key={printer.id}>
-                                        <td className="px-6 py-4 whitespace-nowrap text-center">{printer.printer_ip}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-center">{printer.printer_name}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-center">{printer.printer_brand_model}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-center">{printer.printer_tonner_type}</td>
-                                    </tr>
-                                ))
-                            ) : (
-                                <tr>
-                                    <td colSpan={4} className="px-6 py-4 whitespace-nowrap text-center">Nenhuma impressora encontrada para o cliente ou cliente está inativo.</td>
-                                </tr>
-                            )}
-                        </tbody>
-                    </table>
-                </div>
-                <div>
-                    <div className="flex justify-between items-center mb-4">
-                        <h2 className="text-xl font-semibold mb-4">Últimos dados das impressoras:</h2>
-                        <button 
-                            onClick={() => {
-                                if (printers.length > 0 && isClientActive) {
-                                    handleForceUpdate();
-                                }
-                            }}
-                            disabled={isUpdating || printers.length === 0 || !isClientActive}
-                            className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 disabled:bg-gray-400"
-                        >
-                            {isUpdating ? 'Atualizando...' : 'Forçar atualização'}
-                        </button>
-                    </div>
-                    <table className="min-w-full divide-y divide-gray-200 shadow-md rounded">
-                        <thead className="bg-green-600 text-white">
-                            <tr>
-                                <th className="px-4 py-2">Data e Hora</th>
-                                <th className="px-4 py-2">Impressora</th>
-                                <th className="px-4 py-2">Contagem de Cópias</th>
-                                <th className="px-4 py-2">Nível de Toner</th>
-                            </tr>
-                        </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
-                            {reports.length > 0 && printers.length > 0 && isClientActive ? (
-                                reports.slice().sort((a, b) => new Date(b.date_time).getTime() - new Date(a.date_time).getTime()).slice(0, 50).map((report) => {
-                                    const printer = printers.find(p => p.id === report.printer_id);
-                                    return (
-                                        <tr key={report.id}>
-                                            <td className="px-6 py-4 whitespace-nowrap text-center">{report.date_time}</td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-center">{printer ? printer.printer_name : 'Desconhecida'}</td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-center">{report.current_copy_count}</td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-center">{report.current_toner_level}</td>
-                                        </tr>
-                                    );
-                                })
-                            ) : (
-                                <tr>
-                                    <td colSpan={4} className="px-6 py-4 whitespace-nowrap text-center">Nenhum relatório encontrado para o cliente ou cliente está inativo.</td>
-                                </tr>
-                            )}
-                        </tbody>
-                    </table>
-                </div>
-                <div className="flex justify-center items-center space-x-4 my-4">
-                    <p className="text-md text-gray-700">Versão: <span className="font-semibold">{info.version}</span></p>
-                    <p className="text-md text-gray-700">Autor: <span className="font-semibold">{info.author}</span></p>
-                </div>
+                    <DialogFooter className="flex flex-col sm:flex-row gap-2">
+                    <Button onClick={handleCopyToClipboard} className="w-full sm:w-auto bg-primary hover:bg-primary/90 gap-2">
+                        {copySuccess ? (
+                            <>
+                                <ClipboardCheck className="h-4 w-4" />
+                                Dados copiados!
+                            </>
+                        ) : (
+                            <>
+                                <Clipboard className="h-4 w-4" />
+                                Copiar Dados
+                            </>
+                        )}
+                    </Button>
+                    <Button onClick={handleCloseModal} variant="outline" className="w-full sm:w-auto">
+                        Fechar
+                    </Button>
+                    </DialogFooter>
+                </DialogContent>
+                </Dialog>
             </div>
         </>
     );
