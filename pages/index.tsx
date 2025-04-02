@@ -89,8 +89,8 @@ export default function Home() {
     const [isClientActive, setIsClientActive] = useState(true);
     const [isUpdating, setIsUpdating] = useState(false);
     const [info, setInfo] = useState({ version: '', author: '' });
-    const [machine, setMachineName] = useState('');
-    const [machines, setMachines] = useState<Machine[]>([]);
+    const [machineName, setMachineName] = useState('');
+    const [machine, setMachine] = useState<Machine | null>(null);
     const [accessToken, setAccessToken] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [copySuccess, setCopySuccess] = useState(false);
@@ -134,12 +134,21 @@ export default function Home() {
             });
 
             const machinesData = await machinesResponse.json();
-            setMachines(machinesData);
-            console.log('Machines:', machinesData);
+            const activeMachineData = await machinesData.find(
+                (machineData: { status: string; token: string; }) => 
+                    machineData.status === 'ACTIVE' && 
+                    machineData.token === accessToken
+                );
+            setMachine(activeMachineData);
+            console.log('Machine:', activeMachineData);
         } catch (error) {
-            console.error('Error fetching machines:', error);
+            console.error('Error fetching machine:', error);
         }
     }, [api_url, customerId, accessToken]);
+
+    useEffect(() => {
+        fetchMachines();
+    }, [fetchMachines]);
 
     const fetchCustomer = useCallback(async () => {
         if (!accessToken) {
@@ -169,7 +178,7 @@ export default function Home() {
     }, [api_url, customerId, accessToken]);
 
     const fetchPrinters = useCallback(async () => {
-        if (!accessToken) {
+        if (!accessToken || !machine) {
             return; 
         }
         
@@ -182,13 +191,18 @@ export default function Home() {
             });
             const printersData = await printersResponse.json();
             setPrinters(printersData);
-            const activePrintersData = await printersData.filter((printer: { status: string; mode: string; }) => printer.status === 'ACTIVE' && printer.mode === 'AUTO');
+            const activePrintersData = await printersData.filter(
+                (printer: { status: string; mode: string; machineId: string; }) => 
+                    printer.status === 'ACTIVE' && 
+                    printer.mode === 'AUTO' && 
+                    printer.machineId === machine.id
+                );
             setActivePrinters(activePrintersData);
             console.log('activePrintersData:', activePrintersData);
         } catch (error) {
             console.error('Error fetching printers:', error);
         }
-    }, [api_url, customerId, accessToken]);
+    }, [api_url, customerId, accessToken, machine]);
 
     const fetchSnmpCommands = useCallback(async () => {
         if (!accessToken) {
@@ -288,42 +302,44 @@ export default function Home() {
             console.error('No active printers found.');
             return;
         }
+
+        if (!machine || !accessToken) {
+            return;
+        }
+
         for (const printer of activePrinters) {
-            for (const machine of machines || []) {
-                if (printer.machineId === machine.id && machine.status === 'ACTIVE') {
-                    for (const command of snmpCommands) {
-                        try {
-                            const value = await fetchSnmpData(printer.ipAddress, command.oid, command.community);
-                            console.log('SNMP data:', value);
-                            if (value === undefined || value === null) {
-                                console.error(`Error fetching SNMP data for printer ${printer.id} and command ${command.commandName}`);
-                                continue;
-                            }
-                            const reportData = {
-                                printerId: printer.id,
-                                createdAt: currentTime,
-                                commandName: command.commandName,
-                                value: value.toString()
-                            };
-                            console.log('reportData POST:', reportData);
-                            await postReportData(reportData);
-                        } catch (error) {
-                            console.error(`Error collecting data for printer ${printer.id}:`, error);
+            if (printer.machineId === machine.id && machine.status === 'ACTIVE' && machine.token === accessToken) {
+                for (const command of snmpCommands) {
+                    try {
+                        const value = await fetchSnmpData(printer.ipAddress, command.oid, command.community);
+                        console.log('SNMP data:', value);
+                        if (value === undefined || value === null) {
+                            console.error(`Error fetching SNMP data for printer ${printer.id} and command ${command.commandName}`);
+                            continue;
                         }
+                        const reportData = {
+                            printerId: printer.id,
+                            createdAt: currentTime,
+                            commandName: command.commandName,
+                            value: value.toString()
+                        };
+                        console.log('reportData POST:', reportData);
+                        await postReportData(reportData);
+                    } catch (error) {
+                        console.error(`Error collecting data for printer ${printer.id}:`, error);
                     }
                 }
             }
         }
-    }, [postReportData, activePrinters, snmpCommands, machines]);
+    }, [postReportData, activePrinters, snmpCommands, machine, accessToken]);
 
     const loadData = useCallback(async () => {
         if (customerId) {
             await fetchCustomer();
-            await fetchMachines();
             await fetchPrinters();
             await fetchReports();
         }
-    }, [customerId, fetchPrinters, fetchReports, fetchCustomer, fetchMachines]);
+    }, [customerId, fetchCustomer, fetchPrinters, fetchReports]);
 
     const executeReportCollectionIfNeeded = useCallback(async () => {
         const now = new Date();
@@ -420,7 +436,7 @@ export default function Home() {
     const handleCloseModal = () => setIsModalOpen(false);
 
     const handleCopyToClipboard = () => {
-        const textToCopy = `ID do Cliente: ${customerId}\nNome da Máquina: ${machine}\nChave de acesso: ${accessToken}`;
+        const textToCopy = `ID do Cliente: ${customerId}\nNome da Máquina: ${machineName}\nChave de acesso: ${accessToken}`;
         navigator.clipboard.writeText(textToCopy).then(() => {
             setCopySuccess(true);
             toast.success("Copiado!", {
@@ -687,14 +703,14 @@ export default function Home() {
                                 <input
                                     id="machine-name"
                                     type="text"
-                                    value={machine}
+                                    value={machineName}
                                     readOnly
                                     className="flex-1 bg-gray-50 border border-gray-100 rounded px-2 py-1 select-none"
                                     onMouseDown={(e) => e.preventDefault()} // Prevents text selection
                                 />
                                 <Button
                                     onClick={() => {
-                                        navigator.clipboard.writeText(machine).then(() => {
+                                        navigator.clipboard.writeText(machineName).then(() => {
                                             setCopyMachineSuccess(true);
                                             setTimeout(() => setCopyMachineSuccess(false), 3000);
                                         });
