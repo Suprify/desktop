@@ -14,6 +14,15 @@ const logFilePath = path.join(appDataPath, 'suprify-orbit', 'app.log');
 
 const isDev = !app.isPackaged; // Verifica se está rodando em desenvolvimento
 
+process.env.NODE_ENV = isDev ? 'development' : 'production';
+
+// Carrega as variáveis de ambiente do Next.js
+const envPath = isDev 
+    ? path.resolve(__dirname, '.env.development') 
+    : path.resolve(app.getAppPath(), '.env.production');
+
+require('dotenv').config({ path: envPath });
+
 async function getMachineUUID() {
     const uuid = await machineId();
     return uuid;
